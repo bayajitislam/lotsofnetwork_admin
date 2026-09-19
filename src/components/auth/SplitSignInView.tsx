@@ -58,7 +58,7 @@ export function SplitSignInView() {
   const [inputVal, setInputVal] = useState("");
   const googleBtnRef = useRef<HTMLDivElement>(null);
 
-  // Initialize Client ID from env or saved configuration
+  // Initialize Client ID and check existing valid admin session or URL errors
   useEffect(() => {
     const envId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
     const savedId = typeof window !== "undefined" ? localStorage.getItem("google_client_id") || "" : "";
@@ -67,6 +67,43 @@ export function SplitSignInView() {
       setClientId(effectiveId);
       setInputVal(effectiveId);
     }
+
+    // Check URL parameters for redirect alerts
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const err = params.get("error");
+      if (err === "unauthorized") {
+        setState("denied");
+        setErrorMessage("Access Denied: Confirmed Administrator role required to enter the Command Center.");
+        return;
+      } else if (err === "session_expired") {
+        setState("error");
+        setErrorMessage("Your session has expired. Please sign in with your Google administrator account.");
+        return;
+      }
+    }
+
+    // Check if active admin token already exists
+    const checkActiveSession = async () => {
+      const token = typeof window !== "undefined" ? localStorage.getItem("admin_access_token") : null;
+      if (!token) return;
+
+      try {
+        const me = await authApi.getMe(token);
+        if (me.role === "admin" && me.is_active) {
+          setCurrentUser(me);
+          setState("success");
+        } else {
+          localStorage.removeItem("admin_access_token");
+          localStorage.removeItem("admin_refresh_token");
+        }
+      } catch (e) {
+        localStorage.removeItem("admin_access_token");
+        localStorage.removeItem("admin_refresh_token");
+      }
+    };
+
+    checkActiveSession();
   }, []);
 
   // Handle Google Token Response from GIS

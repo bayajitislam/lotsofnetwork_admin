@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Plus, Sparkles, Megaphone } from "lucide-react";
+import { Plus, Sparkles, Megaphone, Globe2, ShieldAlert } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { Header } from "@/components/dashboard/Header";
 import { OverviewView } from "@/components/dashboard/OverviewView";
@@ -30,8 +30,12 @@ export default function DashboardPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // STRICT AUTHENTICATION STATE
+  const [isAuthenticating, setIsAuthenticating] = useState(true);
   const [token, setToken] = useState<string | null>(null);
   const [adminUser, setAdminUser] = useState<UserProfile | null>(null);
+
+  // Platform Data
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -51,70 +55,56 @@ export default function DashboardPage() {
     { id: "audit", label: "Audit Trail" },
   ];
 
+  // STRICT AUTHENTICATION GUARD ON MOUNT
   useEffect(() => {
-    const savedToken = typeof window !== "undefined" ? localStorage.getItem("admin_access_token") : null;
-    setToken(savedToken);
+    const checkAdminAuth = async () => {
+      const savedToken = typeof window !== "undefined" ? localStorage.getItem("admin_access_token") : null;
 
-    const loadData = async () => {
-      if (savedToken) {
-        try {
-          const me = await authApi.getMe(savedToken);
-          setAdminUser(me);
-        } catch (e) {
-          console.warn("Could not fetch current user with saved token", e);
-        }
+      // 1. If NO token exists at all -> strictly redirect to /
+      if (!savedToken) {
+        window.location.replace("/");
+        return;
       }
 
-      // Load stats
-      try {
-        const s = await adminApi.getStats(savedToken);
-        setStats(s);
-      } catch (e) {}
+      setToken(savedToken);
 
-      // Load campaigns
+      // 2. Validate token cryptographically with backend /api/v1/auth/me
       try {
-        const c = await adminApi.getCampaigns(savedToken);
-        setCampaigns(c);
-      } catch (e) {}
+        const me = await authApi.getMe(savedToken);
 
-      // Load users
-      try {
-        const u = await adminApi.getUsers(savedToken);
-        setUsers(u);
-      } catch (e) {}
+        // 3. Strict RBAC check: Must be role === 'admin' and is_active === true
+        if (me.role !== "admin" || !me.is_active) {
+          localStorage.removeItem("admin_access_token");
+          localStorage.removeItem("admin_refresh_token");
+          window.location.replace("/?error=unauthorized");
+          return;
+        }
 
-      // Load categories
-      try {
-        const cats = await adminApi.getCategories(savedToken);
-        setCategories(cats);
-      } catch (e) {}
+        // 4. Authenticated admin verified
+        setAdminUser(me);
+        setIsAuthenticating(false);
 
-      // Load articles
-      try {
-        const a = await adminApi.getArticles(savedToken);
-        setArticles(a);
-      } catch (e) {}
+        // 5. Load platform data in parallel
+        Promise.allSettled([
+          adminApi.getStats(savedToken).then(setStats),
+          adminApi.getCampaigns(savedToken).then(setCampaigns),
+          adminApi.getUsers(savedToken).then(setUsers),
+          adminApi.getCategories(savedToken).then(setCategories),
+          adminApi.getArticles(savedToken).then(setArticles),
+          adminApi.getTelemetry(savedToken).then(setTelemetry),
+          adminApi.getCrashLogs(savedToken).then(setCrashLogs),
+          adminApi.getAuditLogs(savedToken).then(setAuditLogs),
+        ]);
 
-      // Load telemetry
-      try {
-        const t = await adminApi.getTelemetry(savedToken);
-        setTelemetry(t);
-      } catch (e) {}
-
-      // Load crash logs
-      try {
-        const cl = await adminApi.getCrashLogs(savedToken);
-        setCrashLogs(cl);
-      } catch (e) {}
-
-      // Load audit logs
-      try {
-        const al = await adminApi.getAuditLogs(savedToken);
-        setAuditLogs(al);
-      } catch (e) {}
+      } catch (err) {
+        // Token expired, signature invalid, or backend rejected session
+        localStorage.removeItem("admin_access_token");
+        localStorage.removeItem("admin_refresh_token");
+        window.location.replace("/?error=session_expired");
+      }
     };
 
-    loadData();
+    checkAdminAuth();
   }, []);
 
   const handleCampaignCreated = (newCamp: Campaign) => {
@@ -149,6 +139,24 @@ export default function DashboardPage() {
     adminApi.getStats(token).then(setStats).catch(() => {});
     adminApi.getAuditLogs(token).then(setAuditLogs).catch(() => {});
   };
+
+  // SECURE AUTHENTICATION GATE (Renders while verifying; unauthenticated visitors never see dashboard)
+  if (isAuthenticating) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-[#060911] text-slate-900 dark:text-white p-4">
+        <div className="w-14 h-14 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-xl shadow-blue-500/25 animate-pulse">
+          <Globe2 className="w-7 h-7" />
+        </div>
+        <div className="mt-4 text-center space-y-1">
+          <h3 className="text-sm font-bold tracking-tight">Lots of Network Command Center</h3>
+          <p className="text-xs text-slate-500 font-mono flex items-center justify-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
+            Verifying cryptographic administrator privileges...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const adminDisplayName = adminUser?.name || "Bayajit Islam";
   const adminDisplayEmail = adminUser?.email || "realbayajitislam@gmail.com";
