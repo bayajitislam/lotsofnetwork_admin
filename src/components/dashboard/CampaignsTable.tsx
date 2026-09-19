@@ -1,32 +1,60 @@
 "use client";
 
 import React from "react";
-import { MoreHorizontal, ArrowUpRight, CheckCircle2 } from "lucide-react";
+import { MoreHorizontal, ArrowUpRight } from "lucide-react";
+import { Campaign } from "@/lib/api";
 
-export function CampaignsTable() {
-  const campaigns = [
+interface CampaignsTableProps {
+  campaigns?: Campaign[];
+  onManageClick?: () => void;
+}
+
+export function CampaignsTable({ campaigns, onManageClick }: CampaignsTableProps) {
+  const displayCampaigns = campaigns && campaigns.length > 0 ? campaigns : [
     {
+      id: "1",
       name: "Hostinger Cloud VPS",
-      placement: "IP Lookup & Subnet Top Slot",
-      impressions: "15,480",
-      ctr: "4.8%",
-      color: "bg-purple-500",
+      sponsor: "Hostinger",
+      target_url: "https://hostinger.com",
+      slot: "tool_header",
+      impressions: 18450,
+      clicks: 842,
+      target_impressions: 25000,
+      status: "active" as const,
+      created_at: "",
+      updated_at: "",
     },
     {
+      id: "2",
       name: "DigitalOcean Droplets",
-      placement: "Port Checker & DNS Sidebar",
-      impressions: "8,920",
-      ctr: "3.9%",
-      color: "bg-blue-500",
+      sponsor: "DigitalOcean",
+      target_url: "https://digitalocean.com",
+      slot: "sidebar_banner",
+      impressions: 8920,
+      clicks: 318,
+      target_impressions: 15000,
+      status: "active" as const,
+      created_at: "",
+      updated_at: "",
     },
     {
+      id: "3",
       name: "BunnyCDN Edge Storage",
-      placement: "HTTP Headers & Tools Footer",
-      impressions: "6,254",
-      ctr: "5.1%",
-      color: "bg-emerald-500",
+      sponsor: "BunnyCDN",
+      target_url: "https://bunny.net",
+      slot: "footer_sponsor",
+      impressions: 3284,
+      clicks: 147,
+      target_impressions: 10000,
+      status: "active" as const,
+      created_at: "",
+      updated_at: "",
     },
   ];
+
+  const totalImpressions = displayCampaigns.reduce((acc, c) => acc + c.impressions, 0);
+
+  const colors = ["bg-purple-500", "bg-blue-500", "bg-emerald-500", "bg-amber-500"];
 
   return (
     <div className="p-6 rounded-3xl bg-white dark:bg-[#0b101d] border border-slate-200/80 dark:border-white/5 shadow-xs flex flex-col justify-between">
@@ -42,16 +70,21 @@ export function CampaignsTable() {
           </p>
         </div>
 
-        <button className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-white transition">
-          <MoreHorizontal className="w-4 h-4" />
-        </button>
+        {onManageClick && (
+          <button 
+            onClick={onManageClick}
+            className="text-xs font-semibold text-blue-500 hover:underline cursor-pointer"
+          >
+            Manage All
+          </button>
+        )}
       </div>
 
       {/* Main KPI & Progress Bar */}
       <div className="my-4 space-y-2">
         <div className="flex items-baseline gap-3">
           <span className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
-            30,654
+            {totalImpressions.toLocaleString()}
           </span>
           <span className="inline-flex items-center gap-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full">
             <ArrowUpRight className="w-3 h-3" />
@@ -59,32 +92,43 @@ export function CampaignsTable() {
           </span>
         </div>
 
-        {/* Dual-color Progress Bar (Matching reference screenshot) */}
+        {/* Multi-segment Progress Bar */}
         <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden flex">
-          <div className="h-full bg-purple-600 w-[62%]" />
-          <div className="h-full bg-blue-400 w-[24%]" />
-          <div className="h-full bg-emerald-400 w-[14%]" />
+          {displayCampaigns.slice(0, 3).map((c, i) => {
+            const pct = totalImpressions > 0 ? (c.impressions / totalImpressions) * 100 : 33;
+            const barColors = ["bg-purple-600", "bg-blue-400", "bg-emerald-400"];
+            return (
+              <div 
+                key={c.id} 
+                className={`h-full ${barColors[i % barColors.length]}`} 
+                style={{ width: `${pct}%` }} 
+              />
+            );
+          })}
         </div>
       </div>
 
       {/* Campaign Listing */}
       <div className="space-y-3 pt-1">
-        {campaigns.map((c, i) => (
-          <div key={i} className="flex items-center justify-between text-xs py-1">
-            <div className="flex items-center gap-2.5">
-              <span className={`w-2.5 h-2.5 rounded-full ${c.color}`} />
-              <div>
-                <p className="font-semibold text-slate-900 dark:text-white">{c.name}</p>
-                <p className="text-[11px] text-slate-400">{c.placement}</p>
+        {displayCampaigns.slice(0, 3).map((c, i) => {
+          const ctr = c.impressions > 0 ? ((c.clicks / c.impressions) * 100).toFixed(1) : "0.0";
+          return (
+            <div key={c.id} className="flex items-center justify-between text-xs py-1">
+              <div className="flex items-center gap-2.5">
+                <span className={`w-2.5 h-2.5 rounded-full ${colors[i % colors.length]}`} />
+                <div>
+                  <p className="font-semibold text-slate-900 dark:text-white">{c.name}</p>
+                  <p className="text-[11px] text-slate-400 font-mono">Slot: {c.slot}</p>
+                </div>
+              </div>
+
+              <div className="text-right">
+                <p className="font-mono font-bold text-slate-900 dark:text-white">{c.impressions.toLocaleString()}</p>
+                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">{ctr}% CTR</p>
               </div>
             </div>
-
-            <div className="text-right">
-              <p className="font-mono font-bold text-slate-900 dark:text-white">{c.impressions}</p>
-              <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">{c.ctr} CTR</p>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
