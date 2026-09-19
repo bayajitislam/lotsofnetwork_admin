@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { marked } from "marked";
 import { 
   X, 
   Sparkles, 
@@ -112,7 +113,7 @@ export function ArticleEditorModal({
       setSlug("");
       setCategory(initialCategories[0]?.name || "Subnetting");
       setTags(["networking", "guide"]);
-      setContent(`# Guide Title\n\nWrite your in-depth networking article here...`);
+      setContent(`# Guide Title\n\nWrite your in-depth networking article here...\n\n## Key Architectural Principles\n\nExplain technical concepts with code examples:\n\n\`\`\`bash\nping -c 4 1.1.1.1\n\`\`\`\n\n### Subnet & Port Verification\n\nDetailed breakdown of protocols and RFC specifications.`);
       setExcerpt("");
       setStatus("published");
       setFocusKeyword("");
@@ -144,6 +145,18 @@ export function ArticleEditorModal({
 
   const readingTime = Math.max(1, Math.round(wordCount / 200));
 
+  // Rendered HTML from Markdown
+  const renderedHtml = useMemo(() => {
+    if (!content.trim()) {
+      return "<p class='text-slate-400 italic'>Start typing in markdown to see live rendered preview...</p>";
+    }
+    try {
+      return marked.parse(content, { gfm: true, breaks: true }) as string;
+    } catch (e) {
+      return `<pre class='text-rose-400 font-mono'>Failed to render markdown: ${String(e)}</pre>`;
+    }
+  }, [content]);
+
   // Dynamic Keyword & SEO Checklist Analysis
   const seoAnalysis = useMemo(() => {
     const kw = focusKeyword.trim().toLowerCase();
@@ -152,24 +165,16 @@ export function ArticleEditorModal({
     const effectiveSlug = (slug || "").toLowerCase().replace(/-/g, " ");
     const contentLower = content.toLowerCase();
 
-    // 1. Keyword in Title
     const hasKwInTitle = kw ? effectiveTitle.includes(kw) : false;
-
-    // 2. Keyword in Slug
     const hasKwInSlug = kw ? effectiveSlug.includes(kw) : false;
-
-    // 3. Keyword in Meta Description
     const hasKwInDesc = kw ? effectiveDesc.includes(kw) : false;
 
-    // 4. Keyword in first 100 words
     const first100Words = contentLower.split(/\s+/).slice(0, 100).join(" ");
     const hasKwInIntro = kw ? first100Words.includes(kw) : false;
 
-    // 5. Keyword in H2 / H3 heading
-    const headings = contentLower.match(/^#{2,3}\s+(.+)$/gm) || [];
+    const headings = contentLower.match(/^#{1,6}\s+(.+)$/gm) || [];
     const hasKwInHeading = kw ? headings.some(h => h.includes(kw)) : false;
 
-    // 6. Keyword density
     let keywordCount = 0;
     if (kw && wordCount > 0) {
       const regex = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, "gi");
@@ -178,18 +183,14 @@ export function ArticleEditorModal({
     const keywordDensity = wordCount > 0 ? ((keywordCount / wordCount) * 100).toFixed(2) : "0.00";
     const isDensityOptimal = Number(keywordDensity) >= 0.8 && Number(keywordDensity) <= 2.5;
 
-    // 7. Title length (50 - 60 optimal)
     const titleLen = (seoTitle || title || "").length;
     const isTitleOptimal = titleLen >= 45 && titleLen <= 65;
 
-    // 8. Meta description length (140 - 160 optimal)
     const descLen = (seoDescription || excerpt || "").length;
     const isDescOptimal = descLen >= 135 && descLen <= 165;
 
-    // 9. Content length (> 600 words)
     const isContentLongEnough = wordCount >= 600;
 
-    // 10. Overall Score Calculation
     let score = 0;
     if (hasKwInTitle) score += 20;
     if (hasKwInSlug) score += 15;
@@ -218,8 +219,56 @@ export function ArticleEditorModal({
     };
   }, [focusKeyword, title, seoTitle, slug, seoDescription, excerpt, content, wordCount]);
 
-  // Insert markdown shortcut helper
-  const insertMarkdown = (prefix: string, suffix = "", defaultText = "") => {
+  // SMART LINE-AWARE HEADING INSERTION / TOGGLE (Fixes H1/H2/H3 issue)
+  const insertHeading = (level: number) => {
+    const textarea = document.getElementById("article-markdown-editor") as HTMLTextAreaElement | null;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+
+    // Find the start and end of the current line
+    const lineStart = text.lastIndexOf("\n", start - 1) + 1;
+    let lineEnd = text.indexOf("\n", end);
+    if (lineEnd === -1) lineEnd = text.length;
+
+    const currentLine = text.substring(lineStart, lineEnd);
+    const hashes = "#".repeat(level) + " ";
+
+    let newLine: string;
+    let newCursor: number;
+
+    // If current line already has heading prefix (# , ## , ### )
+    if (/^#{1,6}\s/.test(currentLine)) {
+      if (currentLine.startsWith(hashes)) {
+        // Toggle off if already this level
+        newLine = currentLine.replace(/^#{1,6}\s/, "");
+        newCursor = Math.max(lineStart, start - hashes.length);
+      } else {
+        // Switch to new heading level
+        newLine = currentLine.replace(/^#{1,6}\s/, hashes);
+        newCursor = lineStart + newLine.length;
+      }
+    } else if (currentLine.trim() === "") {
+      newLine = `${hashes}Heading ${level}`;
+      newCursor = lineStart + newLine.length;
+    } else {
+      newLine = `${hashes}${currentLine}`;
+      newCursor = lineStart + newLine.length;
+    }
+
+    const newText = text.substring(0, lineStart) + newLine + text.substring(lineEnd);
+    setContent(newText);
+
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(newCursor, newCursor);
+    }, 20);
+  };
+
+  // Inline formatting shortcut
+  const insertInline = (prefix: string, suffix = "", defaultText = "text") => {
     const textarea = document.getElementById("article-markdown-editor") as HTMLTextAreaElement | null;
     if (!textarea) return;
     const start = textarea.selectionStart;
@@ -231,7 +280,35 @@ export function ArticleEditorModal({
     setTimeout(() => {
       textarea.focus();
       textarea.setSelectionRange(start + prefix.length, start + prefix.length + selected.length);
-    }, 50);
+    }, 20);
+  };
+
+  // Block shortcut (quotes, lists)
+  const insertBlock = (prefix: string, defaultText = "item") => {
+    const textarea = document.getElementById("article-markdown-editor") as HTMLTextAreaElement | null;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+
+    const lineStart = text.lastIndexOf("\n", start - 1) + 1;
+    let lineEnd = text.indexOf("\n", end);
+    if (lineEnd === -1) lineEnd = text.length;
+
+    const currentLine = text.substring(lineStart, lineEnd);
+    let newLine: string;
+    if (currentLine.trim() === "") {
+      newLine = `${prefix}${defaultText}`;
+    } else {
+      newLine = `${prefix}${currentLine}`;
+    }
+
+    const newContent = text.substring(0, lineStart) + newLine + text.substring(lineEnd);
+    setContent(newContent);
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(lineStart + newLine.length, lineStart + newLine.length);
+    }, 20);
   };
 
   // Add tag
@@ -434,7 +511,7 @@ export function ArticleEditorModal({
             <button
               onClick={() => handleSave(false)}
               disabled={saving}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-semibold border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 transition"
+              className="px-3.5 py-1.5 rounded-xl text-xs font-semibold border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5 transition cursor-pointer"
             >
               {saving ? "Saving..." : "Save Draft"}
             </button>
@@ -487,57 +564,67 @@ export function ArticleEditorModal({
               </div>
             </div>
 
-            {/* Markdown Toolbar */}
+            {/* Markdown Toolbar with Real Working Line-Aware Headings */}
             <div className="px-6 py-2 border-b border-slate-100 dark:border-white/5 flex flex-wrap items-center gap-1 text-slate-600 dark:text-slate-300 bg-slate-50/50 dark:bg-white/[0.01]">
               <button 
-                onClick={() => insertMarkdown("# ", "", "Heading 1")} 
-                title="H1 Heading" 
-                className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10"
+                type="button"
+                onClick={() => insertHeading(1)} 
+                title="H1 Main Heading (Toggle #)" 
+                className="px-2.5 py-1.5 rounded-lg hover:bg-purple-500/10 hover:text-purple-600 font-black text-xs transition cursor-pointer flex items-center gap-1"
               >
-                <Heading1 className="w-4 h-4" />
+                <Heading1 className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <span>H1</span>
               </button>
               <button 
-                onClick={() => insertMarkdown("## ", "", "Heading 2")} 
-                title="H2 Heading" 
-                className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10"
+                type="button"
+                onClick={() => insertHeading(2)} 
+                title="H2 Major Section (Toggle ##)" 
+                className="px-2.5 py-1.5 rounded-lg hover:bg-purple-500/10 hover:text-purple-600 font-extrabold text-xs transition cursor-pointer flex items-center gap-1"
               >
-                <Heading2 className="w-4 h-4" />
+                <Heading2 className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <span>H2</span>
               </button>
               <button 
-                onClick={() => insertMarkdown("### ", "", "Heading 3")} 
-                title="H3 Heading" 
-                className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10"
+                type="button"
+                onClick={() => insertHeading(3)} 
+                title="H3 Sub-section (Toggle ###)" 
+                className="px-2.5 py-1.5 rounded-lg hover:bg-purple-500/10 hover:text-purple-600 font-bold text-xs transition cursor-pointer flex items-center gap-1"
               >
-                <Heading3 className="w-4 h-4" />
+                <Heading3 className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <span>H3</span>
               </button>
               
               <div className="w-px h-4 bg-slate-200 dark:bg-white/10 mx-1" />
 
               <button 
-                onClick={() => insertMarkdown("**", "**", "bold text")} 
-                title="Bold" 
-                className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10"
+                type="button"
+                onClick={() => insertInline("**", "**", "bold text")} 
+                title="Bold (**text**)" 
+                className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 cursor-pointer"
               >
                 <Bold className="w-4 h-4" />
               </button>
               <button 
-                onClick={() => insertMarkdown("*", "*", "italic text")} 
-                title="Italic" 
-                className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10"
+                type="button"
+                onClick={() => insertInline("*", "*", "italic text")} 
+                title="Italic (*text*)" 
+                className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 cursor-pointer"
               >
                 <Italic className="w-4 h-4" />
               </button>
               <button 
-                onClick={() => insertMarkdown("`", "`", "code")} 
-                title="Inline Code" 
-                className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10"
+                type="button"
+                onClick={() => insertInline("`", "`", "code")} 
+                title="Inline Code (`code`)" 
+                className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 cursor-pointer"
               >
                 <Code className="w-4 h-4" />
               </button>
               <button 
-                onClick={() => insertMarkdown("> ", "", "Quote / Pro-Tip Callout")} 
-                title="Blockquote" 
-                className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10"
+                type="button"
+                onClick={() => insertBlock("> ", "Pro-tip or key takeaway...")} 
+                title="Blockquote (> quote)" 
+                className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 cursor-pointer"
               >
                 <Quote className="w-4 h-4" />
               </button>
@@ -545,37 +632,42 @@ export function ArticleEditorModal({
               <div className="w-px h-4 bg-slate-200 dark:bg-white/10 mx-1" />
 
               <button 
-                onClick={() => insertMarkdown("- ", "", "List item")} 
-                title="Bullet List" 
-                className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10"
+                type="button"
+                onClick={() => insertBlock("- ", "List item")} 
+                title="Bullet List (- item)" 
+                className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 cursor-pointer"
               >
                 <List className="w-4 h-4" />
               </button>
               <button 
-                onClick={() => insertMarkdown("1. ", "", "First step")} 
-                title="Numbered List" 
-                className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10"
+                type="button"
+                onClick={() => insertBlock("1. ", "Step one")} 
+                title="Numbered List (1. item)" 
+                className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 cursor-pointer"
               >
                 <ListOrdered className="w-4 h-4" />
               </button>
               <button 
-                onClick={() => insertMarkdown("\n| Parameter | Description | Standard |\n|---|---|---|\n| CIDR | Subnet Mask | /24 |\n")} 
+                type="button"
+                onClick={() => insertInline("\n\n| Parameter | Description | Recommended Value |\n|---|---|---|\n| Subnet Mask | Network bitmask | 255.255.255.0 |\n| CIDR Prefix | Slash notation | /24 |\n\n")} 
                 title="Insert Markdown Table" 
-                className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10"
+                className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 cursor-pointer"
               >
                 <TableIcon className="w-4 h-4" />
               </button>
               <button 
-                onClick={() => insertMarkdown("[Link Text](", "https://lotsofnetwork.com)")} 
-                title="Insert Link" 
-                className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10"
+                type="button"
+                onClick={() => insertInline("[", "](https://lotsofnetwork.com)", "Link Anchor")} 
+                title="Insert Link [text](url)" 
+                className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 cursor-pointer"
               >
                 <LinkIcon className="w-4 h-4" />
               </button>
               <button 
-                onClick={() => insertMarkdown("\n```bash\n# Network CLI Verification\nping -c 4 1.1.1.1\n```\n")} 
+                type="button"
+                onClick={() => insertInline("\n\n```bash\n# Network Diagnostics\nping -c 4 1.1.1.1\n```\n\n")} 
                 title="Insert Code Block" 
-                className="px-2 py-1 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 text-[11px] font-mono font-bold"
+                className="px-2 py-1 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 text-[11px] font-mono font-bold cursor-pointer"
               >
                 {"{ } Code"}
               </button>
@@ -591,29 +683,37 @@ export function ArticleEditorModal({
                     id="article-markdown-editor"
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
-                    placeholder="Write article content in Markdown..."
+                    placeholder="Write article content in Markdown using # H1, ## H2, ### H3, lists, and code blocks..."
                     className="w-full h-full font-mono text-xs leading-relaxed text-slate-800 dark:text-slate-200 bg-transparent resize-none focus:outline-hidden"
                   />
                 </div>
               )}
 
-              {/* Rendered Live Preview */}
+              {/* Real Rendered Live Preview with Full Typography Styling */}
               {(viewMode === "preview" || viewMode === "split") && (
-                <div className={`h-full p-8 overflow-y-auto bg-slate-50/50 dark:bg-black/20 ${viewMode === "split" ? "w-1/2" : "w-full"}`}>
-                  <div className="prose prose-slate dark:prose-invert max-w-none text-xs leading-relaxed space-y-4">
-                    <div className="pb-3 border-b border-slate-200 dark:border-white/10">
-                      <span className="text-[10px] font-mono text-purple-600 dark:text-purple-400 uppercase font-bold tracking-wider">
-                        {category}
-                      </span>
-                      <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">
-                        {title || "Untitled Article"}
+                <div className={`h-full p-8 overflow-y-auto bg-slate-50/40 dark:bg-black/20 ${viewMode === "split" ? "w-1/2" : "w-full"}`}>
+                  <div className="max-w-none space-y-4">
+                    
+                    {/* Header Banner in Preview */}
+                    <div className="pb-4 border-b border-slate-200 dark:border-white/10">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono uppercase font-bold text-white bg-purple-600">
+                          {category}
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-mono">
+                          {readingTime} min read
+                        </span>
+                      </div>
+                      <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white mt-2 leading-tight">
+                        {title || "Untitled Article Title"}
                       </h1>
                     </div>
                     
-                    {/* Render raw content formatted preview */}
-                    <div className="whitespace-pre-wrap font-sans text-xs text-slate-700 dark:text-slate-300 space-y-3">
-                      {content}
-                    </div>
+                    {/* Rendered Markdown Body via marked with custom typography */}
+                    <div 
+                      className="article-preview-content"
+                      dangerouslySetInnerHTML={{ __html: renderedHtml }}
+                    />
                   </div>
                 </div>
               )}
@@ -725,14 +825,16 @@ export function ArticleEditorModal({
                 </span>
                 <div className="flex items-center gap-1 p-0.5 rounded-lg bg-slate-100 dark:bg-white/5">
                   <button
+                    type="button"
                     onClick={() => setSerpView("desktop")}
-                    className={`p-1 rounded ${serpView === "desktop" ? "bg-white dark:bg-black/40 text-blue-500" : "text-slate-400"}`}
+                    className={`p-1 rounded cursor-pointer ${serpView === "desktop" ? "bg-white dark:bg-black/40 text-blue-500" : "text-slate-400"}`}
                   >
                     <Monitor className="w-3 h-3" />
                   </button>
                   <button
+                    type="button"
                     onClick={() => setSerpView("mobile")}
-                    className={`p-1 rounded ${serpView === "mobile" ? "bg-white dark:bg-black/40 text-blue-500" : "text-slate-400"}`}
+                    className={`p-1 rounded cursor-pointer ${serpView === "mobile" ? "bg-white dark:bg-black/40 text-blue-500" : "text-slate-400"}`}
                   >
                     <Smartphone className="w-3 h-3" />
                   </button>
@@ -796,7 +898,7 @@ export function ArticleEditorModal({
                 <button
                   type="button"
                   onClick={() => setShowNewCatModal(!showNewCatModal)}
-                  className="text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1"
+                  className="text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1 cursor-pointer"
                 >
                   <Plus className="w-3 h-3" />
                   <span>New Category</span>
@@ -824,7 +926,7 @@ export function ArticleEditorModal({
                     <button
                       type="button"
                       onClick={handleCreateCategory}
-                      className="px-3 py-1 rounded-lg bg-purple-600 text-white font-bold text-[10px]"
+                      className="px-3 py-1 rounded-lg bg-purple-600 text-white font-bold text-[10px] cursor-pointer"
                     >
                       Create
                     </button>
@@ -835,7 +937,7 @@ export function ArticleEditorModal({
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-white dark:bg-[#0b101d] border border-slate-200 dark:border-white/10 font-medium"
+                className="w-full px-3 py-2 rounded-xl bg-white dark:bg-[#0b101d] border border-slate-200 dark:border-white/10 font-medium cursor-pointer"
               >
                 {categoryList.map((cat) => (
                   <option key={cat.id || cat.slug} value={cat.name}>
@@ -862,7 +964,7 @@ export function ArticleEditorModal({
                     <button
                       type="button"
                       onClick={() => handleRemoveTag(t)}
-                      className="hover:text-rose-500 ml-0.5"
+                      className="hover:text-rose-500 ml-0.5 cursor-pointer"
                     >
                       ×
                     </button>
