@@ -18,6 +18,8 @@ import {
   UserProfile, 
   AdminStats, 
   Campaign, 
+  Article,
+  Category,
   ToolTelemetry, 
   CrashLog, 
   AuditLog 
@@ -33,11 +35,12 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [articles, setArticles] = useState<Article[]>([]);
   const [telemetry, setTelemetry] = useState<ToolTelemetry[]>([]);
   const [crashLogs, setCrashLogs] = useState<CrashLog[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
-  // Category pills in subheader
   const subheaderTabs = [
     { id: "overview", label: "Overview" },
     { id: "telemetry", label: "Tool Telemetry" },
@@ -52,7 +55,6 @@ export default function DashboardPage() {
     const savedToken = typeof window !== "undefined" ? localStorage.getItem("admin_access_token") : null;
     setToken(savedToken);
 
-    // Fetch initial data
     const loadData = async () => {
       if (savedToken) {
         try {
@@ -81,6 +83,18 @@ export default function DashboardPage() {
         setUsers(u);
       } catch (e) {}
 
+      // Load categories
+      try {
+        const cats = await adminApi.getCategories(savedToken);
+        setCategories(cats);
+      } catch (e) {}
+
+      // Load articles
+      try {
+        const a = await adminApi.getArticles(savedToken);
+        setArticles(a);
+      } catch (e) {}
+
       // Load telemetry
       try {
         const t = await adminApi.getTelemetry(savedToken);
@@ -105,7 +119,6 @@ export default function DashboardPage() {
 
   const handleCampaignCreated = (newCamp: Campaign) => {
     setCampaigns((prev) => [newCamp, ...prev]);
-    // Refresh stats and audit logs
     adminApi.getStats(token).then(setStats).catch(() => {});
     adminApi.getAuditLogs(token).then(setAuditLogs).catch(() => {});
   };
@@ -125,13 +138,25 @@ export default function DashboardPage() {
     adminApi.getAuditLogs(token).then(setAuditLogs).catch(() => {});
   };
 
+  const handleArticleSaved = (savedArt: Article) => {
+    setArticles((prev) => {
+      const exists = prev.some((a) => a.id === savedArt.id || a.slug === savedArt.slug);
+      if (exists) {
+        return prev.map((a) => (a.id === savedArt.id || a.slug === savedArt.slug ? savedArt : a));
+      }
+      return [savedArt, ...prev];
+    });
+    adminApi.getStats(token).then(setStats).catch(() => {});
+    adminApi.getAuditLogs(token).then(setAuditLogs).catch(() => {});
+  };
+
   const adminDisplayName = adminUser?.name || "Bayajit Islam";
   const adminDisplayEmail = adminUser?.email || "realbayajitislam@gmail.com";
 
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-[#060911] transition-colors duration-300">
       
-      {/* Left Sidebar (Dark Sleek Navigation - Matching Reference) */}
+      {/* Left Sidebar */}
       <Sidebar
         currentTab={currentTab}
         onTabChange={setCurrentTab}
@@ -148,7 +173,7 @@ export default function DashboardPage() {
         {/* Dashboard Body */}
         <main className="p-6 sm:p-8 space-y-7 max-w-7xl w-full mx-auto">
           
-          {/* Subheader: Section Title + Subheader Filter Tabs + Primary Action Button */}
+          {/* Subheader */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             
             <div className="space-y-1">
@@ -156,7 +181,7 @@ export default function DashboardPage() {
                 {currentTab === "overview" ? "Dashboard" : subheaderTabs.find(t => t.id === currentTab)?.label || currentTab}
               </h2>
               
-              {/* Category Pills (Matching reference design) */}
+              {/* Category Pills */}
               <div className="flex flex-wrap items-center gap-2 pt-2">
                 {subheaderTabs.map((tab) => (
                   <button
@@ -174,7 +199,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Primary Action Button (Matches reference: + Create new campaign in purple pill) */}
+            {/* Action button */}
             <div className="flex items-center gap-2.5">
               <button
                 type="button"
@@ -191,6 +216,7 @@ export default function DashboardPage() {
           {currentTab === "overview" && (
             <OverviewView 
               campaigns={campaigns} 
+              stats={stats}
               onManageCampaignsClick={() => setCurrentTab("ads")} 
             />
           )}
@@ -219,7 +245,12 @@ export default function DashboardPage() {
           )}
 
           {currentTab === "blog" && (
-            <BlogStudioView />
+            <BlogStudioView 
+              articles={articles} 
+              categories={categories}
+              token={token} 
+              onArticleSaved={handleArticleSaved}
+            />
           )}
 
           {currentTab === "crashes" && (

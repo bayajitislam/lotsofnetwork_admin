@@ -2,15 +2,30 @@
 
 import React from "react";
 import { MoreHorizontal, Terminal, Users, TrendingUp } from "lucide-react";
+import { AdminStats } from "@/lib/api";
 
-export function RevenueDonut() {
+interface RevenueDonutProps {
+  stats?: AdminStats | null;
+}
+
+export function RevenueDonut({ stats }: RevenueDonutProps) {
+  const targetPct = stats?.ad_target_percentage ?? 68;
+  const breakdown = stats?.revenue_breakdown || {
+    affiliate_percentage: 34,
+    direct_sponsors_percentage: 22,
+    api_freemium_percentage: 35,
+    custom_slots_percentage: 9,
+  };
+
+  const dailyRev = stats ? `$${(stats.total_earnings / 30).toFixed(2)}` : "$98.34";
+
   return (
     <div className="p-6 rounded-3xl bg-white dark:bg-[#0b101d] border border-slate-200/80 dark:border-white/5 shadow-xs flex flex-col justify-between">
       
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-          Earning Reports & Sources
+          Earning Reports & Sources (Backend Data)
         </h3>
         <button className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-white transition">
           <MoreHorizontal className="w-4 h-4" />
@@ -34,7 +49,7 @@ export function RevenueDonut() {
               strokeWidth="18"
             />
             
-            {/* Segment 1: Affiliate Ads (34%) - Vibrant Violet/Purple */}
+            {/* Segment 1: Affiliate Ads - Vibrant Violet */}
             <circle
               cx="80"
               cy="80"
@@ -47,7 +62,7 @@ export function RevenueDonut() {
               className="transition-all duration-500"
             />
 
-            {/* Segment 2: Direct Sponsors (22%) - Deep Indigo */}
+            {/* Segment 2: Direct Sponsors - Deep Indigo */}
             <circle
               cx="80"
               cy="80"
@@ -60,7 +75,7 @@ export function RevenueDonut() {
               className="transition-all duration-500"
             />
 
-            {/* Segment 3: API Freemium (35%) - Electric Blue */}
+            {/* Segment 3: API Freemium - Electric Blue */}
             <circle
               cx="80"
               cy="80"
@@ -73,7 +88,7 @@ export function RevenueDonut() {
               className="transition-all duration-500"
             />
 
-            {/* Segment 4: Custom Ad Slots (9%) - Dark Carbon */}
+            {/* Segment 4: Custom Ad Slots */}
             <circle
               cx="80"
               cy="80"
@@ -87,10 +102,10 @@ export function RevenueDonut() {
             />
           </svg>
 
-          {/* Center Text (Matching reference: 68% Total Sales) */}
+          {/* Center Text */}
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
             <span className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-              68%
+              {targetPct}%
             </span>
             <span className="text-[10px] uppercase font-bold text-slate-400">
               Ad Target
@@ -105,7 +120,7 @@ export function RevenueDonut() {
               <Terminal className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-[11px] font-medium text-slate-400">Total Tool Queries</p>
+              <p className="text-[11px] font-medium text-slate-400">Affiliate Ads ({breakdown.affiliate_percentage}%)</p>
               <p className="text-sm font-bold text-slate-900 dark:text-white">5,480 / hr</p>
             </div>
           </div>
@@ -115,7 +130,7 @@ export function RevenueDonut() {
               <Users className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-[11px] font-medium text-slate-400">Monthly Visitors</p>
+              <p className="text-[11px] font-medium text-slate-400">API Programmatic ({breakdown.api_freemium_percentage}%)</p>
               <p className="text-sm font-bold text-slate-900 dark:text-white">380K Unique</p>
             </div>
           </div>
@@ -125,8 +140,8 @@ export function RevenueDonut() {
               <TrendingUp className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-[11px] font-medium text-slate-400">Daily Revenue</p>
-              <p className="text-sm font-bold text-slate-900 dark:text-white">$98.340</p>
+              <p className="text-[11px] font-medium text-slate-400">Avg Daily Revenue</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{dailyRev}</p>
             </div>
           </div>
         </div>
