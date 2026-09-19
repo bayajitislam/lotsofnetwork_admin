@@ -737,8 +737,8 @@ export function UsersView({
                   </label>
                   <input
                     type="number"
-                    min={100}
-                    step={1000}
+                    min={1}
+                    step="any"
                     required
                     value={newKeyLimit}
                     onChange={(e) => setNewKeyLimit(Number(e.target.value))}

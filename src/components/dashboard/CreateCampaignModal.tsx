@@ -183,8 +183,8 @@ export function CreateCampaignModal({ isOpen, onClose, onSuccess, token }: Creat
               </label>
               <input
                 type="number"
-                min={1000}
-                step={5000}
+                min={1}
+                step="any"
                 value={targetImpressions}
                 onChange={(e) => setTargetImpressions(Number(e.target.value))}
                 className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-purple-500"
