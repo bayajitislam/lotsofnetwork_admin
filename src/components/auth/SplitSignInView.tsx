@@ -9,8 +9,10 @@ import {
   RefreshCw, 
   ExternalLink,
   Activity,
+  ArrowRight,
   Globe2,
-  ArrowRight
+  Settings2,
+  Check
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NetworkTopologyMesh } from "@/components/auth/NetworkTopologyMesh";
@@ -51,9 +53,21 @@ export function SplitSignInView() {
   const [state, setState] = useState<AuthState>("idle");
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [clientId, setClientId] = useState<string>("");
+  const [showConfigInput, setShowConfigInput] = useState(false);
+  const [inputVal, setInputVal] = useState("");
   const googleBtnRef = useRef<HTMLDivElement>(null);
 
-  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
+  // Initialize Client ID from env or saved configuration
+  useEffect(() => {
+    const envId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
+    const savedId = typeof window !== "undefined" ? localStorage.getItem("google_client_id") || "" : "";
+    const effectiveId = envId || savedId;
+    if (effectiveId) {
+      setClientId(effectiveId);
+      setInputVal(effectiveId);
+    }
+  }, []);
 
   // Handle Google Token Response from GIS
   const handleCredentialResponse = useCallback(async (credential: string) => {
@@ -80,14 +94,14 @@ export function SplitSignInView() {
       } else if (err instanceof Error) {
         setErrorMessage(err.message);
       } else {
-        setErrorMessage("Authentication failed. Please verify that the backend API is running.");
+        setErrorMessage("Authentication failed. Please verify the backend connection.");
       }
     }
   }, []);
 
   // Initialize official Google Identity Services
   useEffect(() => {
-    if (!googleClientId) return;
+    if (!clientId) return;
 
     const script = document.createElement("script");
     script.src = "https://accounts.google.com/gsi/client";
@@ -96,13 +110,13 @@ export function SplitSignInView() {
     script.onload = () => {
       if (window.google?.accounts?.id && googleBtnRef.current) {
         window.google.accounts.id.initialize({
-          client_id: googleClientId,
+          client_id: clientId,
           callback: (response) => handleCredentialResponse(response.credential),
         });
         window.google.accounts.id.renderButton(googleBtnRef.current, {
           theme: "outline",
           size: "large",
-          width: 340,
+          width: 360,
           text: "signin_with",
           shape: "pill",
         });
@@ -115,19 +129,13 @@ export function SplitSignInView() {
         document.body.removeChild(script);
       }
     };
-  }, [googleClientId, handleCredentialResponse]);
+  }, [clientId, handleCredentialResponse]);
 
-  // Direct Google Sign-In button click handler
-  const triggerGoogleSignIn = () => {
-    if (window.google?.accounts?.id) {
-      window.google.accounts.id.prompt();
-    } else {
-      // If client ID is pending configuration, prompt helpful setup guidance
-      setErrorMessage(
-        "Google Client ID is not configured yet. Add NEXT_PUBLIC_GOOGLE_CLIENT_ID in lotsofnetwork_admin/.env.local."
-      );
-      setState("error");
-    }
+  const handleSaveClientId = () => {
+    if (!inputVal.trim()) return;
+    localStorage.setItem("google_client_id", inputVal.trim());
+    setClientId(inputVal.trim());
+    setShowConfigInput(false);
   };
 
   const handleReset = () => {
@@ -149,19 +157,17 @@ export function SplitSignInView() {
         {/* Animated Network Topology Mesh Canvas */}
         <NetworkTopologyMesh />
 
-        {/* Subtle Darkening Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/20 dark:from-black/90 dark:via-black/30 pointer-events-none" />
+        {/* Subtle Gradient Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-transparent to-slate-950/10 dark:from-black/90 dark:via-black/20 pointer-events-none" />
 
-        {/* Top Header & Telemetry Status */}
+        {/* Top Header: Site Name in Top Left + Nodes Online indicator in Top Right */}
         <div className="relative z-20 flex items-center justify-between">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/70 dark:bg-slate-900/70 backdrop-blur-md border border-slate-200/60 dark:border-white/10 text-slate-800 dark:text-white text-xs font-semibold shadow-xs">
-            <Globe2 className="w-3.5 h-3.5 text-blue-500 animate-pulse" />
+          <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/80 dark:border-white/10 text-slate-900 dark:text-white text-xs font-bold shadow-xs tracking-tight">
+            <Globe2 className="w-4 h-4 text-blue-500" />
             <span>Lots of Network</span>
-            <span className="opacity-30">/</span>
-            <span className="text-blue-600 dark:text-blue-400 font-mono text-[11px]">admin.lotsofnetwork.com</span>
           </div>
 
-          <div className="hidden sm:inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-medium backdrop-blur-md">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-medium backdrop-blur-md">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
             <span>Nodes Online</span>
           </div>
@@ -209,7 +215,7 @@ export function SplitSignInView() {
           <ThemeToggle />
         </div>
 
-        {/* Ambient Radial Blue Glow behind the Form (Matches reference screenshot) */}
+        {/* Ambient Radial Blue Glow behind the Form */}
         <div className="absolute right-0 top-1/2 -translate-y-1/2 w-96 sm:w-[520px] h-96 sm:h-[520px] bg-blue-600/15 dark:bg-blue-600/25 blur-3xl rounded-full pointer-events-none" />
 
         {/* Centered Authentication Form */}
@@ -223,8 +229,8 @@ export function SplitSignInView() {
             <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white">
               Welcome Back!
             </h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Sign in with your authorized Google administrator account to enter the command center.
+            <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+              Sign in with your authorized Google administrator account to access the command center.
             </p>
           </div>
 
@@ -232,48 +238,64 @@ export function SplitSignInView() {
           {state === "idle" && (
             <div className="space-y-6">
               
-              {/* Google Sign-In Container */}
+              {/* Google Sign-In Action */}
               <div className="pt-2">
-                {googleClientId ? (
+                {clientId ? (
                   <div ref={googleBtnRef} className="w-full flex justify-center min-h-[48px]" />
                 ) : (
-                  <button
-                    onClick={triggerGoogleSignIn}
-                    className="w-full flex items-center justify-center gap-3.5 px-6 py-4 rounded-2xl bg-slate-900 hover:bg-slate-850 dark:bg-slate-900 dark:hover:bg-slate-850 text-white font-semibold text-sm shadow-xl shadow-blue-500/10 hover:shadow-blue-500/20 border border-slate-800 dark:border-white/10 transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] cursor-pointer group"
-                  >
-                    <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-                      <path
-                        fill="#4285F4"
-                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                      />
-                      <path
-                        fill="#EA4335"
-                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                      />
-                    </svg>
-                    <span>Sign in with Google</span>
-                    <ArrowRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform ml-auto" />
-                  </button>
-                )}
-              </div>
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => setShowConfigInput(!showConfigInput)}
+                      className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-2xl bg-slate-900 hover:bg-slate-850 dark:bg-slate-900 dark:hover:bg-slate-850 text-white font-semibold text-sm shadow-xl shadow-blue-500/10 hover:shadow-blue-500/20 border border-slate-800 dark:border-white/10 transition-all duration-200 cursor-pointer"
+                    >
+                      <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                        <path
+                          fill="#4285F4"
+                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                        />
+                        <path
+                          fill="#34A853"
+                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                        />
+                        <path
+                          fill="#FBBC05"
+                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                        />
+                        <path
+                          fill="#EA4335"
+                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                        />
+                      </svg>
+                      <span>Sign in with Google</span>
+                      <ArrowRight className="w-4 h-4 text-slate-400 ml-auto" />
+                    </button>
 
-              {/* Security Guard Notice */}
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-white/5 space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
-                <div className="flex items-center gap-2 text-slate-900 dark:text-slate-200 font-semibold">
-                  <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
-                  <span>Restricted Administrator Portal</span>
-                </div>
-                <p className="leading-relaxed pl-6">
-                  Only whitelisted administrator emails (<code className="font-mono text-blue-600 dark:text-blue-400">realbayajitislam@gmail.com</code>) will be granted access. All access attempts are cryptographically verified and recorded.
-                </p>
+                    {showConfigInput && (
+                      <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3 animate-in fade-in duration-200">
+                        <div className="flex items-center justify-between text-xs font-medium text-slate-700 dark:text-slate-300">
+                          <span className="flex items-center gap-1.5">
+                            <Settings2 className="w-3.5 h-3.5 text-blue-500" />
+                            Connect Google OAuth Client ID
+                          </span>
+                        </div>
+                        <input
+                          type="text"
+                          value={inputVal}
+                          onChange={(e) => setInputVal(e.target.value)}
+                          placeholder="your-google-client-id.apps.googleusercontent.com"
+                          className="w-full px-3 py-2 text-xs rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white font-mono focus:outline-hidden focus:border-blue-500"
+                        />
+                        <button
+                          onClick={handleSaveClientId}
+                          className="w-full py-2 px-3 text-xs rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Activate Google Sign-In</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -361,7 +383,7 @@ export function SplitSignInView() {
                 </div>
 
                 <p className="text-xs text-rose-700 dark:text-rose-300 leading-relaxed">
-                  Signed in as <span className="font-semibold text-rose-900 dark:text-rose-100">{currentUser.email}</span>. This account is not authorized on the administrator whitelist for <code className="bg-rose-100 dark:bg-rose-900/40 px-1 py-0.5 rounded">admin.lotsofnetwork.com</code>.
+                  Signed in as <span className="font-semibold text-rose-900 dark:text-rose-100">{currentUser.email}</span>. This account does not possess administrator privileges for this portal.
                 </p>
               </div>
 
@@ -394,7 +416,7 @@ export function SplitSignInView() {
                   Authentication Notice
                 </h4>
                 <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
-                  {errorMessage || "Unable to reach the backend API at http://localhost:8000."}
+                  {errorMessage || "Unable to complete authentication with Google."}
                 </p>
               </div>
 
