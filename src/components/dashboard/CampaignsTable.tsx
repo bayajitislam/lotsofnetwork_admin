@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { MoreHorizontal, ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, ImageIcon } from "lucide-react";
 import { Campaign } from "@/lib/api";
 
 interface CampaignsTableProps {
@@ -72,13 +72,27 @@ export function CampaignsTable({ campaigns, onManageClick }: CampaignsTableProps
       <div className="space-y-3 pt-1">
         {displayCampaigns.slice(0, 3).map((c, i) => {
           const ctr = c.impressions > 0 ? ((c.clicks / c.impressions) * 100).toFixed(1) : "0.0";
+          const dimensions = c.image_dimensions || "728x90";
+
           return (
             <div key={c.id} className="flex items-center justify-between text-xs py-1">
               <div className="flex items-center gap-2.5">
-                <span className={`w-2.5 h-2.5 rounded-full ${colors[i % colors.length]}`} />
+                {c.image_url ? (
+                  <img
+                    src={c.image_url}
+                    alt={c.name}
+                    className="w-9 h-6 rounded object-cover border border-slate-200 dark:border-white/10 shrink-0 shadow-xs"
+                  />
+                ) : (
+                  <span className={`w-2.5 h-2.5 rounded-full ${colors[i % colors.length]}`} />
+                )}
                 <div>
-                  <p className="font-semibold text-slate-900 dark:text-white">{c.name}</p>
-                  <p className="text-[11px] text-slate-400 font-mono">Slot: {c.slot}</p>
+                  <p className="font-semibold text-slate-900 dark:text-white truncate max-w-[150px] sm:max-w-[200px]">
+                    {c.name}
+                  </p>
+                  <p className="text-[11px] text-slate-400 font-mono">
+                    {c.slot} • {dimensions}
+                  </p>
                 </div>
               </div>
 

@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { 
   X, 
-  Sparkles, 
+  Save, 
   Megaphone, 
   Link as LinkIcon, 
   Target, 
@@ -14,15 +14,16 @@ import {
   Check, 
   ExternalLink,
   Eye,
-  AspectRatio,
-  Maximize2
+  Maximize2,
+  Activity
 } from "lucide-react";
 import { adminApi, Campaign } from "@/lib/api";
 
-interface CreateCampaignModalProps {
+interface EditCampaignModalProps {
+  campaign: Campaign;
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (newCampaign: Campaign) => void;
+  onSuccess: (updatedCampaign: Campaign) => void;
   token?: string | null;
 }
 
@@ -45,20 +46,34 @@ const AD_DIMENSIONS: AdDimensionPreset[] = [
   { id: "custom", name: "Custom Size", label: "Custom", width: 0, height: 0, aspectRatio: "auto", recommendedFor: [] },
 ];
 
-export function CreateCampaignModal({ isOpen, onClose, onSuccess, token }: CreateCampaignModalProps) {
-  const [name, setName] = useState("");
-  const [sponsor, setSponsor] = useState("");
-  const [targetUrl, setTargetUrl] = useState("");
-  const [slot, setSlot] = useState("tool_header");
-  const [payoutType, setPayoutType] = useState("CPA");
-  const [targetImpressions, setTargetImpressions] = useState(50000);
+export function EditCampaignModal({ campaign, isOpen, onClose, onSuccess, token }: EditCampaignModalProps) {
+  const [name, setName] = useState(campaign.name);
+  const [sponsor, setSponsor] = useState(campaign.sponsor);
+  const [targetUrl, setTargetUrl] = useState(campaign.target_url);
+  const [slot, setSlot] = useState(campaign.slot);
+  const [status, setStatus] = useState<"active" | "paused" | "completed">(campaign.status);
+  const [payoutType, setPayoutType] = useState(campaign.payout_type || "CPA");
+  const [targetImpressions, setTargetImpressions] = useState(campaign.target_impressions || 50000);
 
   // Creative & Dimensions state
-  const [dimensionId, setDimensionId] = useState("728x90");
-  const [customWidth, setCustomWidth] = useState(728);
-  const [customHeight, setCustomHeight] = useState(90);
+  const initialDim = campaign.image_dimensions || "728x90";
+  const isKnownPreset = AD_DIMENSIONS.some(d => d.id === initialDim);
+  const [dimensionId, setDimensionId] = useState(isKnownPreset ? initialDim : "custom");
+  const [customWidth, setCustomWidth] = useState(() => {
+    if (!isKnownPreset && initialDim.includes("x")) {
+      return Number(initialDim.split("x")[0]) || 728;
+    }
+    return 728;
+  });
+  const [customHeight, setCustomHeight] = useState(() => {
+    if (!isKnownPreset && initialDim.includes("x")) {
+      return Number(initialDim.split("x")[1]) || 90;
+    }
+    return 90;
+  });
+
   const [imageSourceType, setImageSourceType] = useState<"url" | "upload">("url");
-  const [imageUrl, setImageUrl] = useState("");
+  const [imageUrl, setImageUrl] = useState(campaign.image_url || "");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(false);
@@ -67,18 +82,32 @@ export function CreateCampaignModal({ isOpen, onClose, onSuccess, token }: Creat
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Auto-adjust default standard dimension when slot changes
+  // Reset form if campaign changes
   useEffect(() => {
-    if (slot === "sidebar_banner") {
-      setDimensionId("300x250");
-    } else if (slot === "tool_header" || slot === "footer_sponsor") {
-      setDimensionId("728x90");
-    } else if (slot === "in_content") {
-      setDimensionId("300x250");
+    setName(campaign.name);
+    setSponsor(campaign.sponsor);
+    setTargetUrl(campaign.target_url);
+    setSlot(campaign.slot);
+    setStatus(campaign.status);
+    setPayoutType(campaign.payout_type || "CPA");
+    setTargetImpressions(campaign.target_impressions || 50000);
+    setImageUrl(campaign.image_url || "");
+    const dim = campaign.image_dimensions || "728x90";
+    if (AD_DIMENSIONS.some(d => d.id === dim)) {
+      setDimensionId(dim);
+    } else {
+      setDimensionId("custom");
+      if (dim.includes("x")) {
+        setCustomWidth(Number(dim.split("x")[0]) || 728);
+        setCustomHeight(Number(dim.split("x")[1]) || 90);
+      }
     }
-  }, [slot]);
+    setSelectedFile(null);
+    setFilePreview(null);
+    setError(null);
+  }, [campaign]);
 
-  // Handle local file preview
+  // Handle local file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -101,15 +130,12 @@ export function CreateCampaignModal({ isOpen, onClose, onSuccess, token }: Creat
 
   if (!isOpen) return null;
 
-  // Active dimension string
   const activeDimensionStr = dimensionId === "custom" 
     ? `${customWidth}x${customHeight}` 
     : dimensionId;
 
   const activePreset = AD_DIMENSIONS.find(d => d.id === dimensionId);
-
-  // Active preview image (file preview takes priority if in upload mode)
-  const previewImage = imageSourceType === "upload" ? filePreview : imageUrl.trim();
+  const previewImage = imageSourceType === "upload" ? (filePreview || imageUrl) : (imageUrl.trim() || campaign.image_url);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,9 +147,9 @@ export function CreateCampaignModal({ isOpen, onClose, onSuccess, token }: Creat
 
     setSubmitting(true);
     try {
-      let finalImageUrl: string | null = null;
+      let finalImageUrl: string | null = campaign.image_url || null;
 
-      // Handle media upload if user chose file upload mode
+      // Handle media upload if new file was selected
       if (imageSourceType === "upload" && selectedFile) {
         setUploadProgress(true);
         if (token) {
@@ -131,57 +157,53 @@ export function CreateCampaignModal({ isOpen, onClose, onSuccess, token }: Creat
             const uploadRes = await adminApi.uploadMedia(token, selectedFile);
             finalImageUrl = uploadRes.url;
           } catch (uploadErr: any) {
-            console.warn("Upload endpoint failed, falling back to data URL", uploadErr);
+            console.warn("Upload endpoint failed, falling back to preview URL", uploadErr);
             finalImageUrl = filePreview;
           }
         } else {
           finalImageUrl = filePreview;
         }
         setUploadProgress(false);
-      } else if (imageSourceType === "url" && imageUrl.trim()) {
-        finalImageUrl = imageUrl.trim();
+      } else if (imageSourceType === "url") {
+        finalImageUrl = imageUrl.trim() || null;
       }
 
       if (!token) {
-        // Fallback demo mock if visitor not logged in
-        const mockCampaign: Campaign = {
-          id: `camp-${Date.now()}`,
+        // Mock fallback if logged out
+        const updated: Campaign = {
+          ...campaign,
           name: name.trim(),
           sponsor: sponsor.trim(),
           target_url: targetUrl.trim(),
           image_url: finalImageUrl,
           image_dimensions: activeDimensionStr,
           slot,
-          impressions: 0,
-          clicks: 0,
-          conversions: 0,
-          revenue: 0,
+          status,
           payout_type: payoutType,
           target_impressions: targetImpressions,
-          status: "active",
-          created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
-        onSuccess(mockCampaign);
+        onSuccess(updated);
         onClose();
         return;
       }
 
-      const created = await adminApi.createCampaign(token, {
+      const updated = await adminApi.updateCampaign(token, campaign.id, {
         name: name.trim(),
         sponsor: sponsor.trim(),
         target_url: targetUrl.trim(),
         image_url: finalImageUrl,
         image_dimensions: activeDimensionStr,
         slot,
-        target_impressions: targetImpressions,
+        status,
         payout_type: payoutType,
+        target_impressions: targetImpressions,
       });
 
-      onSuccess(created);
+      onSuccess(updated);
       onClose();
     } catch (err: any) {
-      setError(err.detail || err.message || "Failed to create campaign.");
+      setError(err.detail || err.message || "Failed to update campaign.");
     } finally {
       setSubmitting(false);
       setUploadProgress(false);
@@ -202,10 +224,10 @@ export function CreateCampaignModal({ isOpen, onClose, onSuccess, token }: Creat
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                Launch Sponsor & Affiliate Campaign
+                Edit Sponsor Campaign
               </h3>
               <p className="text-xs text-slate-500">
-                Configure standard ad dimensions, banner creative asset, and affiliate tracking link
+                Update campaign settings, ad creative banner, sizing, and target link
               </p>
             </div>
           </div>
@@ -233,10 +255,9 @@ export function CreateCampaignModal({ isOpen, onClose, onSuccess, token }: Creat
               <input
                 type="text"
                 required
-                placeholder="e.g., Hostinger Cloud VPS Fall Special"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-purple-500"
+                className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-purple-500"
               />
             </div>
 
@@ -247,15 +268,14 @@ export function CreateCampaignModal({ isOpen, onClose, onSuccess, token }: Creat
               <input
                 type="text"
                 required
-                placeholder="e.g., Hostinger"
                 value={sponsor}
                 onChange={(e) => setSponsor(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-purple-500"
+                className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-purple-500"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                 <Layers className="w-3.5 h-3.5 text-purple-500" />
@@ -266,10 +286,26 @@ export function CreateCampaignModal({ isOpen, onClose, onSuccess, token }: Creat
                 onChange={(e) => setSlot(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-purple-500"
               >
-                <option value="tool_header">Tool Header Slot (Above IP Lookup)</option>
+                <option value="tool_header">Tool Header Slot</option>
                 <option value="sidebar_banner">Sidebar Sticky Banner</option>
                 <option value="footer_sponsor">Footer Global Sponsor</option>
                 <option value="in_content">In-Tool Native Recommendation</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Activity className="w-3.5 h-3.5 text-blue-500" />
+                Status
+              </label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as any)}
+                className="w-full px-3 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-purple-500"
+              >
+                <option value="active">Active (Delivering)</option>
+                <option value="paused">Paused</option>
+                <option value="completed">Completed</option>
               </select>
             </div>
 
@@ -300,10 +336,9 @@ export function CreateCampaignModal({ isOpen, onClose, onSuccess, token }: Creat
               <input
                 type="url"
                 required
-                placeholder="https://example.com?ref=lotsofnetwork"
                 value={targetUrl}
                 onChange={(e) => setTargetUrl(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-purple-500"
+                className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-purple-500"
               />
             </div>
 
@@ -407,7 +442,7 @@ export function CreateCampaignModal({ isOpen, onClose, onSuccess, token }: Creat
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                 <ImageIcon className="w-3.5 h-3.5 text-purple-500" />
-                Ad Creative Image Asset
+                Update Ad Creative Image
               </label>
 
               {/* Source Switcher */}
@@ -432,7 +467,7 @@ export function CreateCampaignModal({ isOpen, onClose, onSuccess, token }: Creat
                       : "text-slate-500 hover:text-slate-700 dark:hover:text-white"
                   }`}
                 >
-                  Upload File
+                  Upload New File
                 </button>
               </div>
             </div>
@@ -447,7 +482,7 @@ export function CreateCampaignModal({ isOpen, onClose, onSuccess, token }: Creat
                   className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-purple-500 font-mono"
                 />
                 <p className="text-[10px] text-slate-400">
-                  Provide hosted image link or CDN banner URL
+                  Update external CDN banner URL or image link
                 </p>
               </div>
             ) : (
@@ -469,10 +504,10 @@ export function CreateCampaignModal({ isOpen, onClose, onSuccess, token }: Creat
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                        {selectedFile ? selectedFile.name : "Click to select banner creative"}
+                        {selectedFile ? selectedFile.name : "Click to select new banner creative"}
                       </p>
                       <p className="text-[10px] text-slate-400 mt-0.5">
-                        PNG, JPG, WebP, GIF, SVG up to 5MB
+                        PNG, JPG, WebP, GIF, SVG up to 5MB (Synced via Cloudinary CDN)
                       </p>
                     </div>
                   </div>
@@ -555,9 +590,9 @@ export function CreateCampaignModal({ isOpen, onClose, onSuccess, token }: Creat
               disabled={submitting}
               className="px-5 py-2.5 rounded-xl text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-500/25 transition disabled:opacity-50 cursor-pointer flex items-center gap-2"
             >
-              <Sparkles className="w-3.5 h-3.5" />
+              <Save className="w-3.5 h-3.5" />
               <span>
-                {uploadProgress ? "Uploading Creative..." : submitting ? "Launching..." : "Launch Campaign"}
+                {uploadProgress ? "Uploading Creative..." : submitting ? "Saving..." : "Save Changes"}
               </span>
             </button>
           </div>

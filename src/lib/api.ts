@@ -80,6 +80,8 @@ export interface Campaign {
   name: string;
   sponsor: string;
   target_url: string;
+  image_url?: string | null;
+  image_dimensions?: string | null;
   slot: string;
   impressions: number;
   clicks: number;
@@ -450,6 +452,8 @@ export const adminApi = {
       name: string;
       sponsor: string;
       target_url: string;
+      image_url?: string | null;
+      image_dimensions?: string | null;
       slot: string;
       target_impressions: number;
       payout_type?: string;
@@ -494,6 +498,27 @@ export const adminApi = {
     );
     if (!res.ok) throw new ApiError(res.status, "Failed to delete campaign");
   },
+
+  async uploadMedia(token: string, file: File): Promise<{ status: string; url: string; filename: string; size: number }> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const res = await fetch(`${API_BASE_URL}/api/v1/admin/media/upload`, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new ApiError(res.status, data.detail || "Failed to upload media");
+    return data;
+  },
+
 
   async getArticles(token?: string | null, category?: string): Promise<Article[]> {
     const url = new URL(`${API_BASE_URL}/api/v1/admin/articles`);

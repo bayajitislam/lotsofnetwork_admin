@@ -13,9 +13,14 @@ import {
   Percent, 
   Layers,
   Sparkles,
-  Check
+  Check,
+  ImageIcon,
+  Maximize2,
+  X,
+  Edit3
 } from "lucide-react";
 import { Campaign, adminApi, adsApi } from "@/lib/api";
+import { EditCampaignModal } from "./EditCampaignModal";
 
 interface AdEngineViewProps {
   campaigns: Campaign[];
@@ -33,6 +38,8 @@ export function AdEngineView({
   token,
 }: AdEngineViewProps) {
   const [filterSlot, setFilterSlot] = useState<string>("all");
+  const [previewModalCampaign, setPreviewModalCampaign] = useState<Campaign | null>(null);
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
 
   const totalImpressions = campaigns.reduce((acc, c) => acc + c.impressions, 0);
   const totalClicks = campaigns.reduce((acc, c) => acc + c.clicks, 0);
@@ -167,7 +174,7 @@ export function AdEngineView({
               <span>Sponsor & Ad Campaigns</span>
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Track live impressions, referral clicks, and click-through rates across all placement slots
+              Track live impressions, referral clicks, banner creative sizing, and click-through rates
             </p>
           </div>
 
@@ -181,6 +188,7 @@ export function AdEngineView({
               <option value="tool_header">Tool Header Slot</option>
               <option value="sidebar_banner">Sidebar Sticky Banner</option>
               <option value="footer_sponsor">Footer Global Sponsor</option>
+              <option value="in_content">In-Tool Native Recommendation</option>
             </select>
 
             <button
@@ -198,8 +206,8 @@ export function AdEngineView({
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-slate-100 dark:border-white/5 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-                <th className="pb-3 pl-2">Campaign & Sponsor</th>
-                <th className="pb-3">Slot</th>
+                <th className="pb-3 pl-2">Creative & Campaign</th>
+                <th className="pb-3">Slot & Sizing</th>
                 <th className="pb-3">Delivered Imp</th>
                 <th className="pb-3">Referral Clicks</th>
                 <th className="pb-3">CTR (%)</th>
@@ -211,32 +219,67 @@ export function AdEngineView({
               {filteredCampaigns.map((camp) => {
                 const progress = Math.min(100, Math.round((camp.impressions / camp.target_impressions) * 100));
                 const ctr = camp.impressions > 0 ? ((camp.clicks / camp.impressions) * 100).toFixed(2) : "0.00";
+                const dimensions = camp.image_dimensions || "728x90";
 
                 return (
                   <tr key={camp.id} className="hover:bg-slate-50/50 dark:hover:bg-white/[0.02] transition">
                     <td className="py-4 pl-2">
-                      <div className="font-bold text-slate-900 dark:text-white">
-                        {camp.name}
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5 text-slate-500 text-[11px]">
-                        <span>{camp.sponsor}</span>
-                        <span>•</span>
-                        <a
-                          href={camp.target_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-blue-500 hover:underline flex items-center gap-0.5"
+                      <div className="flex items-center gap-3">
+                        {/* Creative Thumbnail */}
+                        <div 
+                          onClick={() => setPreviewModalCampaign(camp)}
+                          className="relative w-14 h-9 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 overflow-hidden shrink-0 cursor-pointer group shadow-xs"
+                          title="Click to view full banner creative"
                         >
-                          <span>Visit URL</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
+                          {camp.image_url ? (
+                            <img
+                              src={camp.image_url}
+                              alt={camp.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-400">
+                              <ImageIcon className="w-4 h-4 opacity-50" />
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white">
+                            <Eye className="w-3 h-3" />
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="font-bold text-slate-900 dark:text-white">
+                            {camp.name}
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5 text-slate-500 text-[11px]">
+                            <span className="font-medium text-slate-700 dark:text-slate-300">{camp.sponsor}</span>
+                            <span>•</span>
+                            <a
+                              href={camp.target_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-blue-500 hover:underline flex items-center gap-0.5"
+                            >
+                              <span>Visit URL</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                        </div>
                       </div>
                     </td>
 
                     <td className="py-4">
-                      <span className="px-2 py-1 rounded-md text-[10px] font-semibold bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300">
-                        {camp.slot}
-                      </span>
+                      <div className="space-y-1">
+                        <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300">
+                          {camp.slot}
+                        </span>
+                        <div>
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                            <Maximize2 className="w-2.5 h-2.5" />
+                            {dimensions}
+                          </span>
+                        </div>
+                      </div>
                     </td>
 
                     <td className="py-4">
@@ -281,6 +324,24 @@ export function AdEngineView({
 
                     <td className="py-4 pr-2 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {/* Quick Creative Preview */}
+                        <button
+                          onClick={() => setPreviewModalCampaign(camp)}
+                          className="p-1.5 text-slate-400 hover:text-purple-500 transition cursor-pointer"
+                          title="Preview Creative Banner"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Edit Campaign */}
+                        <button
+                          onClick={() => setEditingCampaign(camp)}
+                          className="p-1.5 text-slate-400 hover:text-blue-500 transition cursor-pointer"
+                          title="Edit Campaign"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+
                         <button
                           onClick={() => handleToggleStatus(camp)}
                           className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white transition cursor-pointer"
@@ -321,6 +382,98 @@ export function AdEngineView({
           </table>
         </div>
       </div>
+
+      {/* Edit Campaign Modal */}
+      {editingCampaign && (
+        <EditCampaignModal
+          campaign={editingCampaign}
+          isOpen={!!editingCampaign}
+          onClose={() => setEditingCampaign(null)}
+          onSuccess={(updated) => {
+            onCampaignUpdated(updated);
+            setEditingCampaign(null);
+          }}
+          token={token}
+        />
+      )}
+
+      {/* ============================================================= */}
+      {/* FULL BANNER CREATIVE LIGHTBOX PREVIEW MODAL */}
+      {/* ============================================================= */}
+      {previewModalCampaign && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => setPreviewModalCampaign(null)}
+        >
+          <div 
+            className="w-full max-w-2xl bg-white dark:bg-[#0d1322] border border-slate-200 dark:border-white/10 rounded-3xl shadow-2xl p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/5">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-500 flex items-center justify-center">
+                  <ImageIcon className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                    {previewModalCampaign.name}
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    Sponsor: {previewModalCampaign.sponsor} • Slot: {previewModalCampaign.slot}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPreviewModalCampaign(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-mono text-purple-600 dark:text-purple-400 font-bold bg-purple-500/10 px-2 py-0.5 rounded-md">
+                Dimensions: {previewModalCampaign.image_dimensions || "728x90"}
+              </span>
+              <a
+                href={previewModalCampaign.target_url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-500 hover:underline flex items-center gap-1 font-semibold"
+              >
+                <span>Open Target Affiliate URL</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+
+            {/* Banner Container */}
+            <div className="w-full flex items-center justify-center p-3 rounded-2xl bg-slate-100 dark:bg-black/40 border border-slate-200 dark:border-white/5 overflow-hidden">
+              {previewModalCampaign.image_url ? (
+                <img
+                  src={previewModalCampaign.image_url}
+                  alt={previewModalCampaign.name}
+                  className="max-h-72 w-auto object-contain rounded-xl shadow-md border border-slate-300 dark:border-white/10"
+                />
+              ) : (
+                <div className="py-12 text-center text-slate-400 space-y-1">
+                  <ImageIcon className="w-8 h-8 mx-auto opacity-40" />
+                  <p className="text-xs font-semibold">No creative image uploaded yet</p>
+                  <p className="text-[10px]">Using standard slot text fallback</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end pt-2">
+              <button
+                onClick={() => setPreviewModalCampaign(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-white hover:bg-slate-200 dark:hover:bg-white/15 transition cursor-pointer"
+              >
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
