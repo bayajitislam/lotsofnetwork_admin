@@ -53,10 +53,61 @@ export interface AdminStats {
   avg_ctr: number;
   total_earnings: number;
   api_revenue: number;
+  total_subscriptions?: number;
+  paid_subscribers?: number;
   ad_target_percentage: number;
   monthly_activity: MonthlyActivity[];
   revenue_breakdown: RevenueBreakdown;
   status: string;
+}
+
+export interface Plan {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  monthly_limit: number;
+  rate_limit_rpm: number;
+  price_cents: number;
+  stripe_price_id: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface AdminSubscriptionItem {
+  id: string;
+  user_id: string;
+  user_email: string | null;
+  user_name: string | null;
+  user_avatar: string | null;
+  plan_id: string;
+  plan_name: string;
+  plan_slug: string;
+  monthly_limit: number;
+  rate_limit_rpm: number;
+  price_cents: number;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  status: string;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminSubscriptionUpdate {
+  plan_slug: string;
+  reason?: string;
+}
+
+export interface AdminPlanUpdate {
+  name?: string;
+  description?: string;
+  monthly_limit?: number;
+  rate_limit_rpm?: number;
+  price_cents?: number;
+  stripe_price_id?: string;
+  is_active?: boolean;
 }
 
 export interface Category {
@@ -159,7 +210,7 @@ export interface ApiKey {
   name: string;
   key_prefix: string;
   masked_key: string;
-  key_value?: string;
+  // key_value intentionally absent — raw keys are never stored or returned after creation
   tier: "free" | "developer" | "pro";
   monthly_limit: number;
   current_month_usage: number;
@@ -169,7 +220,7 @@ export interface ApiKey {
 }
 
 export interface ApiKeyCreateResponse extends ApiKey {
-  secret_key: string;
+  secret_key: string; // Shown ONCE at creation — never stored in DB
 }
 
 
@@ -260,7 +311,7 @@ export async function authFetch(
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  let res = await fetch(url, { ...options, headers });
+  let res = await fetch(url, { credentials: "include", ...options, headers });
 
   // If 401 occurs despite initial token, attempt seamless refresh and retry once
   if (res.status === 401 && typeof window !== "undefined") {
@@ -270,7 +321,7 @@ export async function authFetch(
         const renewed = await authApi.refreshToken(refreshToken);
         if (renewed.access_token) {
           headers.set("Authorization", `Bearer ${renewed.access_token}`);
-          res = await fetch(url, { ...options, headers });
+          res = await fetch(url, { credentials: "include", ...options, headers });
         }
       } catch {
         localStorage.removeItem("admin_access_token");
@@ -287,6 +338,7 @@ export const authApi = {
   async loginWithGoogle(credential: string): Promise<AuthResponse> {
     const res = await fetch(`${API_BASE_URL}/api/v1/auth/google`, {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ credential }),
     });
@@ -303,11 +355,12 @@ export const authApi = {
     return authData;
   },
 
-  async refreshToken(refreshToken: string): Promise<TokenRefreshResponse> {
+  async refreshToken(refreshToken?: string): Promise<TokenRefreshResponse> {
     const res = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: refreshToken }),
+      body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
     });
 
     const data = await res.json().catch(() => ({}));
@@ -689,6 +742,53 @@ export const adminApi = {
     if (!res.ok) throw new ApiError(res.status, "Failed to delete API key");
   },
 
+  async getSubscriptions(token?: string | null): Promise<AdminSubscriptionItem[]> {
+    const res = await authFetch(`${API_BASE_URL}/api/v1/admin/subscriptions`, {}, token);
+    const data = await res.json().catch(() => ([]));
+    if (!res.ok) throw new ApiError(res.status, (data as any)?.detail || "Failed to load subscriptions");
+    return data as AdminSubscriptionItem[];
+  },
+
+  async updateUserSubscription(
+    token: string,
+    userId: string,
+    payload: AdminSubscriptionUpdate
+  ): Promise<AdminSubscriptionItem> {
+    const res = await authFetch(
+      `${API_BASE_URL}/api/v1/admin/subscriptions/${userId}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+      token
+    );
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new ApiError(res.status, data.detail || "Failed to update user subscription");
+    return data as AdminSubscriptionItem;
+  },
+
+  async getPlans(token?: string | null): Promise<Plan[]> {
+    const res = await authFetch(`${API_BASE_URL}/api/v1/admin/plans`, {}, token);
+    const data = await res.json().catch(() => ([]));
+    if (!res.ok) throw new ApiError(res.status, (data as any)?.detail || "Failed to load plans");
+    return data as Plan[];
+  },
+
+  async updatePlan(token: string, planId: string, payload: AdminPlanUpdate): Promise<Plan> {
+    const res = await authFetch(
+      `${API_BASE_URL}/api/v1/admin/plans/${planId}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+      token
+    );
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new ApiError(res.status, data.detail || "Failed to update plan");
+    return data as Plan;
+  },
 };
 
 export const toolsApi = {

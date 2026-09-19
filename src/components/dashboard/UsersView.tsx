@@ -23,32 +23,35 @@ import {
   Lock,
   Zap,
   TrendingUp,
-  Eye,
-  EyeOff,
-  Terminal
+  Terminal,
+  CreditCard
 } from "lucide-react";
-import { UserProfile, AdminStats, ApiKey, ApiKeyCreateResponse, adminApi } from "@/lib/api";
+import { UserProfile, AdminStats, ApiKey, ApiKeyCreateResponse, AdminSubscriptionItem, adminApi } from "@/lib/api";
 
 interface UsersViewProps {
   users: UserProfile[];
   apiKeys?: ApiKey[];
+  subscriptions?: AdminSubscriptionItem[];
   stats?: AdminStats | null;
   token?: string | null;
   onUserStatusUpdated?: (user: UserProfile) => void;
   onApiKeyCreated?: (key: ApiKey) => void;
   onApiKeyUpdated?: (key: ApiKey) => void;
   onApiKeyDeleted?: (id: string) => void;
+  onNavigateToSubscriptions?: () => void;
 }
 
 export function UsersView({
   users,
   apiKeys = [],
+  subscriptions = [],
   stats,
   token,
   onUserStatusUpdated,
   onApiKeyCreated,
   onApiKeyUpdated,
   onApiKeyDeleted,
+  onNavigateToSubscriptions,
 }: UsersViewProps) {
   const [activeTab, setActiveTab] = useState<"users" | "keys">("users");
   
@@ -74,17 +77,12 @@ export function UsersView({
   // Secret Key Revealed Modal state
   const [revealedSecret, setRevealedSecret] = useState<string | null>(null);
   const [hasCopiedSecret, setHasCopiedSecret] = useState(false);
-  const [revealedKeyIds, setRevealedKeyIds] = useState<Record<string, boolean>>({});
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
 
   const handleCopyKeyString = (id: string, keyStr: string) => {
     navigator.clipboard.writeText(keyStr);
     setCopiedKeyId(id);
     setTimeout(() => setCopiedKeyId(null), 2000);
-  };
-
-  const toggleRevealKey = (id: string) => {
-    setRevealedKeyIds(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
   // Handle User status toggle
@@ -312,6 +310,7 @@ export function UsersView({
                   <tr className="border-b border-slate-100 dark:border-white/5 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
                     <th className="pb-3 pl-2">User & Identity</th>
                     <th className="pb-3">Role</th>
+                    <th className="pb-3">Subscription Tier</th>
                     <th className="pb-3">Registered Date</th>
                     <th className="pb-3">Status</th>
                     <th className="pb-3 pr-2 text-right">Account Control</th>
@@ -320,6 +319,10 @@ export function UsersView({
                 <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                   {filteredUsers.map((u) => {
                     const isToggling = togglingUserId === u.id;
+                    const userSub = subscriptions.find(s => s.user_id === u.id);
+                    const planSlug = userSub?.plan_slug || "free";
+                    const planName = userSub?.plan_name || (u.role === "admin" ? "Admin Access" : "Free Developer");
+
                     return (
                       <tr key={u.id} className="hover:bg-slate-50/50 dark:hover:bg-white/[0.02] transition">
                         <td className="py-4 pl-2">
@@ -347,6 +350,37 @@ export function UsersView({
                             {u.role === "admin" ? <ShieldCheck className="w-3 h-3" /> : <Key className="w-3 h-3" />}
                             {u.role.toUpperCase()}
                           </span>
+                        </td>
+
+                        <td className="py-4">
+                          {onNavigateToSubscriptions ? (
+                            <button
+                              type="button"
+                              onClick={onNavigateToSubscriptions}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold transition hover:opacity-80 cursor-pointer ${
+                                planSlug === "enterprise"
+                                  ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20"
+                                  : planSlug === "pro"
+                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                                  : "bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20"
+                              }`}
+                              title="Click to view subscription & plan management"
+                            >
+                              <CreditCard className="w-3 h-3" />
+                              <span>{planName}</span>
+                            </button>
+                          ) : (
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                              planSlug === "enterprise"
+                                ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20"
+                                : planSlug === "pro"
+                                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                                : "bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20"
+                            }`}>
+                              <CreditCard className="w-3 h-3" />
+                              <span>{planName}</span>
+                            </span>
+                          )}
                         </td>
 
                         <td className="py-4 text-slate-500">
@@ -518,24 +552,14 @@ export function UsersView({
                             </div>
                             <div className="flex items-center gap-1.5 mt-1 text-slate-500 font-mono text-[11px]">
                               <Lock className="w-3 h-3 text-purple-400 shrink-0" />
-                              <span className="select-all text-slate-700 dark:text-slate-300">
-                                {revealedKeyIds[k.id] && k.key_value ? k.key_value : k.masked_key}
+                              <span className="select-all text-slate-700 dark:text-slate-300 font-mono">
+                                {k.masked_key}
                               </span>
-                              {k.key_value && (
-                                <button
-                                  type="button"
-                                  onClick={() => toggleRevealKey(k.id)}
-                                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded transition cursor-pointer"
-                                  title={revealedKeyIds[k.id] ? "Hide full key" : "Reveal full key"}
-                                >
-                                  {revealedKeyIds[k.id] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                                </button>
-                              )}
                               <button
                                 type="button"
-                                onClick={() => handleCopyKeyString(k.id, k.key_value || k.masked_key)}
+                                onClick={() => handleCopyKeyString(k.id, k.masked_key)}
                                 className="p-1 text-slate-400 hover:text-purple-500 rounded transition cursor-pointer"
-                                title="Copy API Key to clipboard"
+                                title="Copy masked key identifier"
                               >
                                 {copiedKeyId === k.id ? (
                                   <Check className="w-3 h-3 text-emerald-500" />

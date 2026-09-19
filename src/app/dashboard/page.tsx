@@ -8,6 +8,7 @@ import { OverviewView } from "@/components/dashboard/OverviewView";
 import { TelemetryView } from "@/components/dashboard/TelemetryView";
 import { AdEngineView } from "@/components/dashboard/AdEngineView";
 import { UsersView } from "@/components/dashboard/UsersView";
+import { SubscriptionsView } from "@/components/dashboard/SubscriptionsView";
 import { BlogStudioView } from "@/components/dashboard/BlogStudioView";
 import { CrashAnalyticsView } from "@/components/dashboard/CrashAnalyticsView";
 import { AuditLogsView } from "@/components/dashboard/AuditLogsView";
@@ -23,7 +24,9 @@ import {
   ToolTelemetry, 
   CrashLog, 
   AuditLog,
-  ApiKey 
+  ApiKey,
+  AdminSubscriptionItem,
+  Plan
 } from "@/lib/api";
 
 export default function DashboardPage() {
@@ -41,6 +44,8 @@ export default function DashboardPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
+  const [subscriptions, setSubscriptions] = useState<AdminSubscriptionItem[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
   const [telemetry, setTelemetry] = useState<ToolTelemetry[]>([]);
@@ -50,6 +55,7 @@ export default function DashboardPage() {
   const subheaderTabs = [
     { id: "overview", label: "Overview" },
     { id: "telemetry", label: "Tool Telemetry" },
+    { id: "subscriptions", label: "Subscriptions & Plans" },
     { id: "ads", label: "Ad Campaigns" },
     { id: "users", label: "Users & RBAC" },
     { id: "blog", label: "Blog & SEO" },
@@ -110,6 +116,8 @@ export default function DashboardPage() {
           adminApi.getCampaigns(savedToken).then(setCampaigns),
           adminApi.getUsers(savedToken).then(setUsers),
           adminApi.getApiKeys(savedToken).then(setApiKeys),
+          adminApi.getSubscriptions(savedToken).then(setSubscriptions),
+          adminApi.getPlans(savedToken).then(setPlans),
           adminApi.getCategories(savedToken).then(setCategories),
           adminApi.getArticles(savedToken).then(setArticles),
           adminApi.getTelemetry(savedToken).then(setTelemetry),
@@ -197,6 +205,34 @@ export default function DashboardPage() {
     });
     adminApi.getStats(token).then(setStats).catch(() => {});
     adminApi.getAuditLogs(token).then(setAuditLogs).catch(() => {});
+  };
+
+  const handleSubscriptionUpdated = (updated: AdminSubscriptionItem) => {
+    setSubscriptions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+    adminApi.getStats(token).then(setStats).catch(() => {});
+    adminApi.getApiKeys(token).then(setApiKeys).catch(() => {});
+    adminApi.getAuditLogs(token).then(setAuditLogs).catch(() => {});
+  };
+
+  const handlePlanUpdated = (updated: Plan) => {
+    setPlans((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    adminApi.getAuditLogs(token).then(setAuditLogs).catch(() => {});
+  };
+
+  const handleRefreshSubscriptions = async () => {
+    if (!token) return;
+    try {
+      const [newSubs, newPlans, newStats] = await Promise.all([
+        adminApi.getSubscriptions(token),
+        adminApi.getPlans(token),
+        adminApi.getStats(token),
+      ]);
+      setSubscriptions(newSubs);
+      setPlans(newPlans);
+      setStats(newStats);
+    } catch (e) {
+      console.error("Failed to refresh subscriptions", e);
+    }
   };
 
   // SECURE AUTHENTICATION GATE (Renders while verifying; unauthenticated visitors never see dashboard)
@@ -293,6 +329,18 @@ export default function DashboardPage() {
             <TelemetryView telemetry={telemetry} />
           )}
 
+          {currentTab === "subscriptions" && (
+            <SubscriptionsView
+              subscriptions={subscriptions}
+              plans={plans}
+              stats={stats}
+              token={token}
+              onSubscriptionUpdated={handleSubscriptionUpdated}
+              onPlanUpdated={handlePlanUpdated}
+              onRefresh={handleRefreshSubscriptions}
+            />
+          )}
+
           {currentTab === "ads" && (
             <AdEngineView
               campaigns={campaigns}
@@ -307,12 +355,14 @@ export default function DashboardPage() {
             <UsersView
               users={users}
               apiKeys={apiKeys}
+              subscriptions={subscriptions}
               stats={stats}
               token={token}
               onUserStatusUpdated={handleUserStatusUpdated}
               onApiKeyCreated={handleApiKeyCreated}
               onApiKeyUpdated={handleApiKeyUpdated}
               onApiKeyDeleted={handleApiKeyDeleted}
+              onNavigateToSubscriptions={() => setCurrentTab("subscriptions")}
             />
           )}
 

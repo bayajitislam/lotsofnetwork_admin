@@ -15,7 +15,8 @@ import {
   LogOut, 
   Globe2, 
   Sparkles,
-  ChevronRight
+  ChevronRight,
+  CreditCard
 } from "lucide-react";
 import { authApi } from "@/lib/api";
 
@@ -37,6 +38,7 @@ export function Sidebar({
   const navItems = [
     { id: "overview", label: "Dashboard", icon: LayoutDashboard },
     { id: "telemetry", label: "Tool Telemetry", icon: Activity, badge: "18 Live" },
+    { id: "subscriptions", label: "Subscriptions & Plans", icon: CreditCard, badge: "Billing" },
     { id: "ads", label: "Ad Campaigns", icon: Megaphone, badge: "Monetized" },
     { id: "users", label: "Users & API Keys", icon: Users },
     { id: "blog", label: "Blog & SEO Studio", icon: FileText },

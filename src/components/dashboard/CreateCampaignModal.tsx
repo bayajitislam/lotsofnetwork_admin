@@ -14,7 +14,6 @@ import {
   Check, 
   ExternalLink,
   Eye,
-  AspectRatio,
   Maximize2
 } from "lucide-react";
 import { adminApi, Campaign } from "@/lib/api";
