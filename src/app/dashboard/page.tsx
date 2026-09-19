@@ -22,7 +22,8 @@ import {
   Category,
   ToolTelemetry, 
   CrashLog, 
-  AuditLog 
+  AuditLog,
+  ApiKey 
 } from "@/lib/api";
 
 export default function DashboardPage() {
@@ -39,6 +40,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
   const [telemetry, setTelemetry] = useState<ToolTelemetry[]>([]);
@@ -55,20 +57,36 @@ export default function DashboardPage() {
     { id: "audit", label: "Audit Trail" },
   ];
 
-  // STRICT AUTHENTICATION GUARD ON MOUNT
+  // STRICT AUTHENTICATION GUARD & CONTINUOUS SESSION KEEPER
   useEffect(() => {
-    const checkAdminAuth = async () => {
-      const savedToken = typeof window !== "undefined" ? localStorage.getItem("admin_access_token") : null;
+    let isMounted = true;
 
-      // 1. If NO token exists at all -> strictly redirect to /
-      if (!savedToken) {
+    const checkAdminAuth = async () => {
+      let savedToken = typeof window !== "undefined" ? localStorage.getItem("admin_access_token") : null;
+      const savedRefreshToken = typeof window !== "undefined" ? localStorage.getItem("admin_refresh_token") : null;
+
+      // 1. If NO token and NO refresh token exist at all -> strictly redirect to /
+      if (!savedToken && !savedRefreshToken) {
         window.location.replace("/");
         return;
       }
 
-      setToken(savedToken);
+      // If access token is missing but refresh token exists, attempt refresh immediately
+      if (!savedToken && savedRefreshToken) {
+        try {
+          const renewed = await authApi.refreshToken(savedRefreshToken);
+          savedToken = renewed.access_token;
+        } catch {
+          localStorage.removeItem("admin_access_token");
+          localStorage.removeItem("admin_refresh_token");
+          window.location.replace("/?error=session_expired");
+          return;
+        }
+      }
 
-      // 2. Validate token cryptographically with backend /api/v1/auth/me
+      if (isMounted) setToken(savedToken);
+
+      // 2. Validate token cryptographically with backend /api/v1/auth/me (authFetch seamlessly refreshes if expired)
       try {
         const me = await authApi.getMe(savedToken);
 
@@ -80,6 +98,8 @@ export default function DashboardPage() {
           return;
         }
 
+        if (!isMounted) return;
+
         // 4. Authenticated admin verified
         setAdminUser(me);
         setIsAuthenticating(false);
@@ -89,6 +109,7 @@ export default function DashboardPage() {
           adminApi.getStats(savedToken).then(setStats),
           adminApi.getCampaigns(savedToken).then(setCampaigns),
           adminApi.getUsers(savedToken).then(setUsers),
+          adminApi.getApiKeys(savedToken).then(setApiKeys),
           adminApi.getCategories(savedToken).then(setCategories),
           adminApi.getArticles(savedToken).then(setArticles),
           adminApi.getTelemetry(savedToken).then(setTelemetry),
@@ -97,7 +118,7 @@ export default function DashboardPage() {
         ]);
 
       } catch (err) {
-        // Token expired, signature invalid, or backend rejected session
+        // Token and refresh both failed or rejected
         localStorage.removeItem("admin_access_token");
         localStorage.removeItem("admin_refresh_token");
         window.location.replace("/?error=session_expired");
@@ -105,6 +126,26 @@ export default function DashboardPage() {
     };
 
     checkAdminAuth();
+
+    // 6. Proactive silent session keeper heartbeat (runs every 10 minutes)
+    const sessionInterval = setInterval(async () => {
+      const refreshToken = typeof window !== "undefined" ? localStorage.getItem("admin_refresh_token") : null;
+      if (refreshToken) {
+        try {
+          const res = await authApi.refreshToken(refreshToken);
+          if (isMounted && res.access_token) {
+            setToken(res.access_token);
+          }
+        } catch (e) {
+          console.warn("Silent token refresh heartbeat error:", e);
+        }
+      }
+    }, 10 * 60 * 1000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(sessionInterval);
+    };
   }, []);
 
   const handleCampaignCreated = (newCamp: Campaign) => {
@@ -125,6 +166,24 @@ export default function DashboardPage() {
 
   const handleUserStatusUpdated = (updatedUser: UserProfile) => {
     setUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
+    adminApi.getAuditLogs(token).then(setAuditLogs).catch(() => {});
+  };
+
+  const handleApiKeyCreated = (newKey: ApiKey) => {
+    setApiKeys((prev) => [newKey, ...prev]);
+    adminApi.getStats(token).then(setStats).catch(() => {});
+    adminApi.getAuditLogs(token).then(setAuditLogs).catch(() => {});
+  };
+
+  const handleApiKeyUpdated = (updatedKey: ApiKey) => {
+    setApiKeys((prev) => prev.map((k) => (k.id === updatedKey.id ? updatedKey : k)));
+    adminApi.getStats(token).then(setStats).catch(() => {});
+    adminApi.getAuditLogs(token).then(setAuditLogs).catch(() => {});
+  };
+
+  const handleApiKeyDeleted = (keyId: string) => {
+    setApiKeys((prev) => prev.filter((k) => k.id !== keyId));
+    adminApi.getStats(token).then(setStats).catch(() => {});
     adminApi.getAuditLogs(token).then(setAuditLogs).catch(() => {});
   };
 
@@ -225,6 +284,7 @@ export default function DashboardPage() {
             <OverviewView 
               campaigns={campaigns} 
               stats={stats}
+              telemetry={telemetry}
               onManageCampaignsClick={() => setCurrentTab("ads")} 
             />
           )}
@@ -246,9 +306,13 @@ export default function DashboardPage() {
           {currentTab === "users" && (
             <UsersView
               users={users}
+              apiKeys={apiKeys}
               stats={stats}
               token={token}
               onUserStatusUpdated={handleUserStatusUpdated}
+              onApiKeyCreated={handleApiKeyCreated}
+              onApiKeyUpdated={handleApiKeyUpdated}
+              onApiKeyDeleted={handleApiKeyDeleted}
             />
           )}
 
@@ -262,7 +326,12 @@ export default function DashboardPage() {
           )}
 
           {currentTab === "crashes" && (
-            <CrashAnalyticsView logs={crashLogs} />
+            <CrashAnalyticsView 
+              logs={crashLogs} 
+              token={token}
+              onLogUpdated={(updated) => setCrashLogs(prev => prev.map(l => l.id === updated.id ? updated : l))}
+              onReloadLogs={(newLogs) => setCrashLogs(newLogs)}
+            />
           )}
 
           {currentTab === "audit" && (

@@ -15,7 +15,8 @@ import {
   Edit,
   Tag as TagIcon,
   Check,
-  Target
+  Target,
+  RotateCcw
 } from "lucide-react";
 import { Article, Category, adminApi } from "@/lib/api";
 import { ArticleEditorModal } from "@/components/dashboard/ArticleEditorModal";
@@ -31,6 +32,28 @@ export function BlogStudioView({ articles, categories, token, onArticleSaved }: 
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [submittingSlug, setSubmittingSlug] = useState<string | null>(null);
+  const [isResettingViews, setIsResettingViews] = useState(false);
+
+  const handleResetAllViews = async () => {
+    if (!token) return;
+    const confirmed = window.confirm(
+      "Are you sure you want to reset all article view counts to 0 in the database? This will clear historical baseline numbers and track from 0."
+    );
+    if (!confirmed) return;
+
+    setIsResettingViews(true);
+    try {
+      await adminApi.resetAllArticleViews(token);
+      articles.forEach((a) => {
+        onArticleSaved({ ...a, views: 0 });
+      });
+      alert("All article views have been reset to 0 in the database.");
+    } catch (e: any) {
+      alert(e.message || "Failed to reset views.");
+    } finally {
+      setIsResettingViews(false);
+    }
+  };
   const [indexedSlugs, setIndexedSlugs] = useState<Record<string, boolean>>({});
 
   // Editor Modal State
@@ -103,11 +126,17 @@ export function BlogStudioView({ articles, categories, token, onArticleSaved }: 
         </div>
 
         <div className="p-5 rounded-2xl bg-white dark:bg-[#0b101d] border border-slate-200/80 dark:border-white/5 shadow-xs">
-          <span className="text-xs font-semibold text-slate-500">Total Organic Readership</span>
-          <div className="mt-2 text-2xl font-black text-blue-600 dark:text-blue-400">
-            {(totalViews / 1000).toFixed(1)}K Reads
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500">Total Verified Reads</span>
+            <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-md">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Live DB Telemetry
+            </span>
           </div>
-          <span className="text-xs text-blue-500 font-semibold">+18.4% MoM Search Traffic</span>
+          <div className="mt-2 text-2xl font-black text-blue-600 dark:text-blue-400">
+            {totalViews.toLocaleString()} Reads
+          </div>
+          <span className="text-xs text-blue-500 font-semibold">Real-time IP-deduplicated telemetry</span>
         </div>
       </div>
 
@@ -164,6 +193,17 @@ export function BlogStudioView({ articles, categories, token, onArticleSaved }: 
                 className="w-full pl-8 pr-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-hidden"
               />
             </div>
+
+            <button
+              type="button"
+              onClick={handleResetAllViews}
+              disabled={isResettingViews}
+              title="Reset all article views in database to 0"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-200 dark:border-white/10 transition cursor-pointer shrink-0 disabled:opacity-50"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 ${isResettingViews ? "animate-spin" : ""}`} />
+              <span>{isResettingViews ? "Resetting..." : "Reset Views to 0"}</span>
+            </button>
 
             <button
               onClick={handleOpenCreate}
@@ -238,7 +278,10 @@ export function BlogStudioView({ articles, categories, token, onArticleSaved }: 
                     </td>
 
                     <td className="py-4 font-semibold text-slate-800 dark:text-slate-200">
-                      {art.views ? art.views.toLocaleString() : "0"}
+                      <div className="inline-flex items-center gap-1.5">
+                        <span className="font-mono">{art.views ? art.views.toLocaleString() : "0"}</span>
+                        <span className="text-[10px] font-mono font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded" title="Verified live DB count">Live</span>
+                      </div>
                     </td>
 
                     <td className="py-4 pr-2 text-right">

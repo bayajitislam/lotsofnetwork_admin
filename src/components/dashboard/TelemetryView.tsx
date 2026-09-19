@@ -12,7 +12,7 @@ import {
   Terminal,
   RefreshCw
 } from "lucide-react";
-import { ToolTelemetry } from "@/lib/api";
+import { ToolTelemetry, toolsApi } from "@/lib/api";
 
 interface TelemetryViewProps {
   telemetry: ToolTelemetry[];
@@ -27,12 +27,7 @@ export function TelemetryView({ telemetry }: TelemetryViewProps) {
 
   const categories = [
     "all",
-    "IP & Routing",
-    "DNS & Domain",
-    "Security & Ports",
-    "Web & SSL",
-    "Diagnostics",
-    "Utilities",
+    ...Array.from(new Set(telemetry.map((t) => t.category).filter(Boolean))),
   ];
 
   const filtered = telemetry.filter((t) => {
@@ -41,14 +36,29 @@ export function TelemetryView({ telemetry }: TelemetryViewProps) {
     return matchCat && matchSearch;
   });
 
-  const handleTestPing = (slug: string) => {
+  const [isBenchmarking, setIsBenchmarking] = useState(false);
+
+  const handleTestPing = async (slug: string) => {
     setPingingSlug(slug);
-    const start = performance.now();
-    setTimeout(() => {
-      const simulatedLatency = Math.floor(Math.random() * 25) + 12;
-      setLivePings((prev) => ({ ...prev, [slug]: simulatedLatency }));
+    try {
+      const res = await toolsApi.pingTool(slug);
+      setLivePings((prev) => ({ ...prev, [slug]: res.latency_ms }));
+    } catch (e) {
+      console.error("Failed to ping tool", e);
+    } finally {
       setPingingSlug(null);
-    }, 450);
+    }
+  };
+
+  const handleRunFullBenchmark = async () => {
+    setIsBenchmarking(true);
+    for (const t of telemetry) {
+      try {
+        const res = await toolsApi.pingTool(t.slug);
+        setLivePings((prev) => ({ ...prev, [t.slug]: res.latency_ms }));
+      } catch (e) {}
+    }
+    setIsBenchmarking(false);
   };
 
   const handleCopyCurl = (slug: string) => {
@@ -73,20 +83,32 @@ export function TelemetryView({ telemetry }: TelemetryViewProps) {
                   : "bg-white dark:bg-[#0b101d] text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/20"
               }`}
             >
-              {cat === "all" ? "All 22 Tools" : cat}
+              {cat === "all" ? `Active Engines (${telemetry.length})` : cat}
             </button>
           ))}
         </div>
 
-        <div className="relative w-full sm:w-64">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Filter by name or slug..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 rounded-xl text-xs bg-white dark:bg-[#0b101d] border border-slate-200/80 dark:border-white/5 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-          />
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={handleRunFullBenchmark}
+            disabled={isBenchmarking}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition cursor-pointer disabled:opacity-50 shrink-0"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isBenchmarking ? "animate-spin" : ""}`} />
+            <span>{isBenchmarking ? "Benchmarking Engines..." : "Benchmark All Tools"}</span>
+          </button>
+
+          <div className="relative w-full sm:w-60">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Filter by name or slug..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 rounded-xl text-xs bg-white dark:bg-[#0b101d] border border-slate-200/80 dark:border-white/5 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
         </div>
       </div>
 

@@ -64,6 +64,7 @@ export function ArticleEditorModal({
   const [tagInput, setTagInput] = useState("");
   const [content, setContent] = useState("");
   const [excerpt, setExcerpt] = useState("");
+  const [views, setViews] = useState<number>(0);
   const [status, setStatus] = useState<"published" | "draft" | "scheduled" | "archived">("published");
   
   // SEO Fields
@@ -102,6 +103,7 @@ export function ArticleEditorModal({
       setContent(articleToEdit.content || "");
       setExcerpt(articleToEdit.excerpt || "");
       setStatus(articleToEdit.status);
+      setViews(articleToEdit.views || 0);
       setFocusKeyword(articleToEdit.focus_keyword || "");
       setSecondaryKeywordsInput((articleToEdit.secondary_keywords || []).join(", "));
       setSeoTitle(articleToEdit.seo_title || "");
@@ -116,6 +118,7 @@ export function ArticleEditorModal({
       setContent(`# Guide Title\n\nWrite your in-depth networking article here...\n\n## Key Architectural Principles\n\nExplain technical concepts with code examples:\n\n\`\`\`bash\nping -c 4 1.1.1.1\n\`\`\`\n\n### Subnet & Port Verification\n\nDetailed breakdown of protocols and RFC specifications.`);
       setExcerpt("");
       setStatus("published");
+      setViews(0);
       setFocusKeyword("");
       setSecondaryKeywordsInput("");
       setSeoTitle("");
@@ -383,6 +386,7 @@ export function ArticleEditorModal({
       seo_description: seoDescription.trim() || excerpt.trim() || undefined,
       canonical_url: canonicalUrl.trim() || `https://lotsofnetwork.com/blog/${slug.trim().toLowerCase()}`,
       featured_image: featuredImage.trim() || undefined,
+      views: Number(views) >= 0 ? Number(views) : 0,
     };
 
     try {
@@ -400,7 +404,7 @@ export function ArticleEditorModal({
           tags,
           excerpt: excerpt.trim() || null,
           content,
-          views: articleToEdit?.views || 100,
+          views: Number(views) >= 0 ? Number(views) : 0,
           status: finalStatus,
           is_indexed: true,
           focus_keyword: focusKeyword.trim() || null,
@@ -1013,6 +1017,30 @@ export function ArticleEditorModal({
                 onChange={(e) => setCanonicalUrl(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl bg-white dark:bg-[#0b101d] border border-slate-200 dark:border-white/10 text-xs text-slate-500 font-mono truncate"
               />
+            </div>
+
+            {/* 8. Live Views & Telemetry Calibration */}
+            <div className="space-y-1.5 p-3 rounded-xl bg-slate-50 dark:bg-white/[0.02] border border-slate-200/80 dark:border-white/5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                  <Eye className="w-3.5 h-3.5 text-blue-500" />
+                  <span>Verified Pageviews</span>
+                </label>
+                <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live Telemetry
+                </span>
+              </div>
+              <input
+                type="number"
+                min="0"
+                value={views}
+                onChange={(e) => setViews(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                className="w-full px-3 py-2 rounded-xl bg-white dark:bg-[#0b101d] border border-slate-200 dark:border-white/10 text-xs font-mono font-bold text-slate-900 dark:text-white"
+              />
+              <p className="text-[10px] text-slate-400 leading-tight">
+                Dynamic database count. Increments on live visits (15-min IP deduplication). Calibrate anytime with GA4 or Google Search Console.
+              </p>
             </div>
 
           </div>

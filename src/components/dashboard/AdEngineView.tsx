@@ -11,11 +11,11 @@ import {
   MousePointerClick, 
   Eye, 
   Percent, 
-  DollarSign,
   Layers,
-  Sparkles
+  Sparkles,
+  Check
 } from "lucide-react";
-import { Campaign, adminApi } from "@/lib/api";
+import { Campaign, adminApi, adsApi } from "@/lib/api";
 
 interface AdEngineViewProps {
   campaigns: Campaign[];
@@ -36,8 +36,8 @@ export function AdEngineView({
 
   const totalImpressions = campaigns.reduce((acc, c) => acc + c.impressions, 0);
   const totalClicks = campaigns.reduce((acc, c) => acc + c.clicks, 0);
+  const activeCount = campaigns.filter((c) => c.status === "active").length;
   const avgCtr = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(2) : "0.00";
-  const estimatedRevenue = (totalClicks * 1.85 + (totalImpressions / 1000) * 4.2).toFixed(2);
 
   const filteredCampaigns = filterSlot === "all" 
     ? campaigns 
@@ -57,6 +57,24 @@ export function AdEngineView({
     }
   };
 
+  const handleTestImpression = async (camp: Campaign) => {
+    try {
+      const res = await adsApi.recordImpression(camp.id);
+      onCampaignUpdated({ ...camp, impressions: res.impressions });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleTestClick = async (camp: Campaign) => {
+    try {
+      const res = await adsApi.recordClick(camp.id);
+      onCampaignUpdated({ ...camp, clicks: res.clicks });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleDelete = async (campaignId: string) => {
     if (!confirm("Are you sure you want to delete this campaign?")) return;
     if (token) {
@@ -73,8 +91,9 @@ export function AdEngineView({
 
   return (
     <div className="space-y-6">
-      {/* Top Banner Stats */}
+      {/* Top Banner Stats: Pure Impression & Click Telemetry */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Delivered Impressions */}
         <div className="p-5 rounded-2xl bg-white dark:bg-[#0b101d] border border-slate-200/80 dark:border-white/5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">Delivered Impressions</span>
@@ -86,13 +105,14 @@ export function AdEngineView({
             <span className="text-2xl font-black text-slate-900 dark:text-white">
               {totalImpressions.toLocaleString()}
             </span>
-            <span className="text-xs font-bold text-emerald-500">+14.2%</span>
+            <span className="text-xs font-bold text-blue-500">Edge Deduped</span>
           </div>
         </div>
 
+        {/* Card 2: Outbound Referral Clicks */}
         <div className="p-5 rounded-2xl bg-white dark:bg-[#0b101d] border border-slate-200/80 dark:border-white/5 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Affiliate Clicks</span>
+            <span className="text-xs font-semibold text-slate-500">Outbound Referral Clicks</span>
             <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center">
               <MousePointerClick className="w-4 h-4" />
             </div>
@@ -101,14 +121,15 @@ export function AdEngineView({
             <span className="text-2xl font-black text-slate-900 dark:text-white">
               {totalClicks.toLocaleString()}
             </span>
-            <span className="text-xs font-bold text-emerald-500">+8.6%</span>
+            <span className="text-xs font-bold text-indigo-500">Verified</span>
           </div>
         </div>
 
+        {/* Card 3: Average Click-Through Rate */}
         <div className="p-5 rounded-2xl bg-white dark:bg-[#0b101d] border border-slate-200/80 dark:border-white/5 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">Average CTR</span>
-            <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
               <Percent className="w-4 h-4" />
             </div>
           </div>
@@ -116,22 +137,23 @@ export function AdEngineView({
             <span className="text-2xl font-black text-slate-900 dark:text-white">
               {avgCtr}%
             </span>
-            <span className="text-xs font-bold text-purple-500">High Quality</span>
+            <span className="text-xs font-bold text-emerald-500">Conversion Rate</span>
           </div>
         </div>
 
+        {/* Card 4: Active Campaigns */}
         <div className="p-5 rounded-2xl bg-white dark:bg-[#0b101d] border border-slate-200/80 dark:border-white/5 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500">Estimated Yield</span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
-              <DollarSign className="w-4 h-4" />
+            <span className="text-xs font-semibold text-slate-500">Active Campaigns</span>
+            <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center">
+              <Megaphone className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl font-black text-slate-900 dark:text-white">
-              ${estimatedRevenue}
+              {activeCount}
             </span>
-            <span className="text-xs font-bold text-emerald-500">eCPM $4.20</span>
+            <span className="text-xs font-bold text-purple-500">of {campaigns.length} Total</span>
           </div>
         </div>
       </div>
@@ -140,12 +162,12 @@ export function AdEngineView({
       <div className="p-6 rounded-3xl bg-white dark:bg-[#0b101d] border border-slate-200/80 dark:border-white/5 shadow-xs space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Megaphone className="w-5 h-5 text-purple-500" />
-              Active Sponsor Campaigns & Monetization Slots
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Megaphone className="w-4 h-4 text-purple-500" />
+              <span>Sponsor & Ad Campaigns</span>
             </h3>
-            <p className="text-xs text-slate-500">
-              Live banner slots, target quotas, and affiliate click-through performance across Lots of Network
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Track live impressions, referral clicks, and click-through rates across all placement slots
             </p>
           </div>
 
@@ -177,9 +199,10 @@ export function AdEngineView({
             <thead>
               <tr className="border-b border-slate-100 dark:border-white/5 text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
                 <th className="pb-3 pl-2">Campaign & Sponsor</th>
-                <th className="pb-3">Slot Placement</th>
-                <th className="pb-3">Impression Progress</th>
-                <th className="pb-3">Clicks & CTR</th>
+                <th className="pb-3">Slot</th>
+                <th className="pb-3">Delivered Imp</th>
+                <th className="pb-3">Referral Clicks</th>
+                <th className="pb-3">CTR (%)</th>
                 <th className="pb-3">Status</th>
                 <th className="pb-3 pr-2 text-right">Actions</th>
               </tr>
@@ -204,76 +227,90 @@ export function AdEngineView({
                           rel="noreferrer"
                           className="text-blue-500 hover:underline flex items-center gap-0.5"
                         >
-                          Target Link <ExternalLink className="w-3 h-3 inline" />
+                          <span>Visit URL</span>
+                          <ExternalLink className="w-3 h-3" />
                         </a>
                       </div>
                     </td>
 
                     <td className="py-4">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 font-mono text-[10px] font-semibold">
-                        <Layers className="w-3 h-3 text-purple-400" />
+                      <span className="px-2 py-1 rounded-md text-[10px] font-semibold bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300">
                         {camp.slot}
                       </span>
                     </td>
 
-                    <td className="py-4 w-48">
-                      <div className="flex items-center justify-between text-[11px] mb-1.5">
-                        <span className="font-semibold text-slate-800 dark:text-slate-200">
-                          {camp.impressions.toLocaleString()}
-                        </span>
-                        <span className="text-slate-400">
-                          / {camp.target_impressions.toLocaleString()} ({progress}%)
-                        </span>
+                    <td className="py-4">
+                      <div className="font-semibold text-slate-900 dark:text-white">
+                        {camp.impressions.toLocaleString()}
                       </div>
-                      <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-white/10 overflow-hidden">
+                      <div className="w-24 bg-slate-100 dark:bg-white/5 h-1.5 rounded-full overflow-hidden mt-1">
                         <div
-                          className="h-full rounded-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-500"
+                          className="bg-blue-500 h-full rounded-full transition-all duration-300"
                           style={{ width: `${progress}%` }}
                         />
                       </div>
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">
+                        {progress}% of target
+                      </span>
                     </td>
 
-                    <td className="py-4">
-                      <div className="font-semibold text-slate-900 dark:text-white">
-                        {camp.clicks.toLocaleString()} clicks
-                      </div>
-                      <div className="text-[11px] text-emerald-500 font-bold">
-                        {ctr}% CTR
-                      </div>
+                    <td className="py-4 font-semibold text-slate-900 dark:text-white">
+                      {camp.clicks.toLocaleString()}
+                    </td>
+
+                    <td className="py-4 font-semibold text-emerald-600 dark:text-emerald-400">
+                      {ctr}%
                     </td>
 
                     <td className="py-4">
                       <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${
                           camp.status === "active"
-                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-                            : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                            ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"
+                            : "bg-slate-100 dark:bg-white/5 text-slate-400"
                         }`}
                       >
-                        <span className={`w-1.5 h-1.5 rounded-full ${camp.status === "active" ? "bg-emerald-500" : "bg-amber-500"}`} />
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            camp.status === "active" ? "bg-emerald-500" : "bg-slate-400"
+                          }`}
+                        />
                         {camp.status.toUpperCase()}
                       </span>
                     </td>
 
                     <td className="py-4 pr-2 text-right">
-                      <div className="inline-flex items-center gap-1">
+                      <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => handleToggleStatus(camp)}
-                          title={camp.status === "active" ? "Pause campaign" : "Resume campaign"}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 transition cursor-pointer"
+                          className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white transition cursor-pointer"
+                          title={camp.status === "active" ? "Pause Campaign" : "Resume Campaign"}
                         >
-                          {camp.status === "active" ? (
-                            <Pause className="w-4 h-4 text-amber-500" />
-                          ) : (
-                            <Play className="w-4 h-4 text-emerald-500" />
-                          )}
+                          {camp.status === "active" ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                        </button>
+                        
+                        {/* Live Delivery Test Actions */}
+                        <button
+                          onClick={() => handleTestImpression(camp)}
+                          className="px-2 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 text-[10px] font-bold rounded-md transition cursor-pointer"
+                          title="Trigger live impression ping"
+                        >
+                          +1 Imp
                         </button>
                         <button
-                          onClick={() => handleDelete(camp.id)}
-                          title="Delete campaign"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-slate-100 dark:hover:bg-white/5 transition cursor-pointer"
+                          onClick={() => handleTestClick(camp)}
+                          className="px-2 py-1 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-500 text-[10px] font-bold rounded-md transition cursor-pointer"
+                          title="Trigger live referral click"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          +1 Click
+                        </button>
+
+                        <button
+                          onClick={() => handleDelete(camp.id)}
+                          className="p-1.5 text-red-400 hover:text-red-500 transition cursor-pointer"
+                          title="Delete Campaign"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </td>

@@ -6,15 +6,16 @@ import { ActivityChart } from "@/components/dashboard/ActivityChart";
 import { RevenueDonut } from "@/components/dashboard/RevenueDonut";
 import { CampaignsTable } from "@/components/dashboard/CampaignsTable";
 import { ToolsHealthGrid } from "@/components/dashboard/ToolsHealthGrid";
-import { Campaign, AdminStats } from "@/lib/api";
+import { Campaign, AdminStats, ToolTelemetry } from "@/lib/api";
 
 interface OverviewViewProps {
   campaigns: Campaign[];
   stats?: AdminStats | null;
+  telemetry?: ToolTelemetry[];
   onManageCampaignsClick: () => void;
 }
 
-export function OverviewView({ campaigns, stats, onManageCampaignsClick }: OverviewViewProps) {
+export function OverviewView({ campaigns, stats, telemetry, onManageCampaignsClick }: OverviewViewProps) {
   return (
     <div className="space-y-6">
       {/* Grid Layout */}
@@ -23,7 +24,7 @@ export function OverviewView({ campaigns, stats, onManageCampaignsClick }: Overv
         {/* LEFT COLUMN: Metric Cards + Monthly Activity Chart (8 cols) */}
         <div className="lg:col-span-8 space-y-6">
           <MetricCards stats={stats} />
-          <ActivityChart />
+          <ActivityChart stats={stats} />
         </div>
 
         {/* RIGHT COLUMN: Earning Reports Donut + Campaign Progress (4 cols) */}
@@ -33,8 +34,8 @@ export function OverviewView({ campaigns, stats, onManageCampaignsClick }: Overv
         </div>
       </div>
 
-      {/* Bottom Row: 22 Network Tools Live Health */}
-      <ToolsHealthGrid />
+      {/* Bottom Row: Active Network Tools Live Health */}
+      <ToolsHealthGrid telemetry={telemetry} />
     </div>
   );
 }

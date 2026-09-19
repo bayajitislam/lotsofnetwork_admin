@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, Sparkles, Megaphone, Link as LinkIcon, Target, Layers } from "lucide-react";
+import { X, Sparkles, Megaphone, Link as LinkIcon, Target, Layers, DollarSign } from "lucide-react";
 import { adminApi, Campaign } from "@/lib/api";
 
 interface CreateCampaignModalProps {
@@ -16,6 +16,7 @@ export function CreateCampaignModal({ isOpen, onClose, onSuccess, token }: Creat
   const [sponsor, setSponsor] = useState("");
   const [targetUrl, setTargetUrl] = useState("");
   const [slot, setSlot] = useState("tool_header");
+  const [payoutType, setPayoutType] = useState("CPA");
   const [targetImpressions, setTargetImpressions] = useState(50000);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +43,9 @@ export function CreateCampaignModal({ isOpen, onClose, onSuccess, token }: Creat
           slot,
           impressions: 0,
           clicks: 0,
+          conversions: 0,
+          revenue: 0,
+          payout_type: payoutType,
           target_impressions: targetImpressions,
           status: "active",
           created_at: new Date().toISOString(),
@@ -58,6 +62,7 @@ export function CreateCampaignModal({ isOpen, onClose, onSuccess, token }: Creat
         target_url: targetUrl.trim(),
         slot,
         target_impressions: Number(targetImpressions),
+        payout_type: payoutType,
       });
 
       onSuccess(created);
@@ -153,6 +158,40 @@ export function CreateCampaignModal({ isOpen, onClose, onSuccess, token }: Creat
             </div>
           </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <DollarSign className="w-3.5 h-3.5 text-emerald-500" />
+                Payout Model
+              </label>
+              <select
+                value={payoutType}
+                onChange={(e) => setPayoutType(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-purple-500"
+              >
+                <option value="CPA">CPA - Cost Per Acquisition</option>
+                <option value="CPC">CPC - Cost Per Click</option>
+                <option value="Fixed Sponsor">Fixed Monthly Sponsor</option>
+                <option value="RevShare">Revenue Share (Tiered)</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Target className="w-3.5 h-3.5 text-purple-500" />
+                Target Impression Cap
+              </label>
+              <input
+                type="number"
+                min={1000}
+                step={5000}
+                value={targetImpressions}
+                onChange={(e) => setTargetImpressions(Number(e.target.value))}
+                className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+          </div>
+
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
               <LinkIcon className="w-3.5 h-3.5 text-purple-500" />
@@ -165,21 +204,6 @@ export function CreateCampaignModal({ isOpen, onClose, onSuccess, token }: Creat
               value={targetUrl}
               onChange={(e) => setTargetUrl(e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-purple-500"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-              <Target className="w-3.5 h-3.5 text-purple-500" />
-              Target Impression Cap
-            </label>
-            <input
-              type="number"
-              min={1000}
-              step={5000}
-              value={targetImpressions}
-              onChange={(e) => setTargetImpressions(Number(e.target.value))}
-              className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-purple-500"
             />
           </div>
 

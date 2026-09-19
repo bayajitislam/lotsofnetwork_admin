@@ -83,21 +83,45 @@ export function SplitSignInView() {
       }
     }
 
-    // Check if active admin token already exists
+    // Check if active admin token already exists or can be refreshed
     const checkActiveSession = async () => {
-      const token = typeof window !== "undefined" ? localStorage.getItem("admin_access_token") : null;
-      if (!token) return;
+      let token = typeof window !== "undefined" ? localStorage.getItem("admin_access_token") : null;
+      const refreshToken = typeof window !== "undefined" ? localStorage.getItem("admin_refresh_token") : null;
+
+      if (!token && !refreshToken) return;
+
+      if (!token && refreshToken) {
+        try {
+          const renewed = await authApi.refreshToken(refreshToken);
+          token = renewed.access_token;
+        } catch {
+          return;
+        }
+      }
 
       try {
         const me = await authApi.getMe(token);
         if (me.role === "admin" && me.is_active) {
           setCurrentUser(me);
           setState("success");
+          window.location.replace("/dashboard");
         } else {
           localStorage.removeItem("admin_access_token");
           localStorage.removeItem("admin_refresh_token");
         }
       } catch (e) {
+        if (refreshToken) {
+          try {
+            const renewed = await authApi.refreshToken(refreshToken);
+            const me = await authApi.getMe(renewed.access_token);
+            if (me.role === "admin" && me.is_active) {
+              setCurrentUser(me);
+              setState("success");
+              window.location.replace("/dashboard");
+              return;
+            }
+          } catch {}
+        }
         localStorage.removeItem("admin_access_token");
         localStorage.removeItem("admin_refresh_token");
       }
@@ -223,13 +247,13 @@ export function SplitSignInView() {
           </h2>
 
           <p className="text-sm sm:text-base text-slate-200/90 leading-relaxed font-light">
-            Centralized operations for 22 network diagnostics tools, real-time BGP & DNS telemetry, sponsored ad engine, and automated Google index management.
+            Centralized operations for active network diagnostics engines, real-time BGP & DNS telemetry, sponsored ad engine, and automated Google index management.
           </p>
 
           {/* Quick Metrics Badges */}
           <div className="pt-2 flex flex-wrap gap-2 text-xs font-mono text-slate-300">
             <span className="px-2.5 py-1 rounded-lg bg-white/10 dark:bg-black/40 backdrop-blur-md border border-white/10">
-              22 Tools Monitored
+              Active Engines Monitored
             </span>
             <span className="px-2.5 py-1 rounded-lg bg-white/10 dark:bg-black/40 backdrop-blur-md border border-white/10">
               Google OAuth 2.0

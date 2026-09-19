@@ -10,47 +10,7 @@ interface CampaignsTableProps {
 }
 
 export function CampaignsTable({ campaigns, onManageClick }: CampaignsTableProps) {
-  const displayCampaigns = campaigns && campaigns.length > 0 ? campaigns : [
-    {
-      id: "1",
-      name: "Hostinger Cloud VPS",
-      sponsor: "Hostinger",
-      target_url: "https://hostinger.com",
-      slot: "tool_header",
-      impressions: 18450,
-      clicks: 842,
-      target_impressions: 25000,
-      status: "active" as const,
-      created_at: "",
-      updated_at: "",
-    },
-    {
-      id: "2",
-      name: "DigitalOcean Droplets",
-      sponsor: "DigitalOcean",
-      target_url: "https://digitalocean.com",
-      slot: "sidebar_banner",
-      impressions: 8920,
-      clicks: 318,
-      target_impressions: 15000,
-      status: "active" as const,
-      created_at: "",
-      updated_at: "",
-    },
-    {
-      id: "3",
-      name: "BunnyCDN Edge Storage",
-      sponsor: "BunnyCDN",
-      target_url: "https://bunny.net",
-      slot: "footer_sponsor",
-      impressions: 3284,
-      clicks: 147,
-      target_impressions: 10000,
-      status: "active" as const,
-      created_at: "",
-      updated_at: "",
-    },
-  ];
+  const displayCampaigns = campaigns || [];
 
   const totalImpressions = displayCampaigns.reduce((acc, c) => acc + c.impressions, 0);
 
@@ -66,7 +26,7 @@ export function CampaignsTable({ campaigns, onManageClick }: CampaignsTableProps
             Active Sponsor Campaigns
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Affiliate ads placed across 22 network tools
+            Affiliate ads placed across active network tools
           </p>
         </div>
 
