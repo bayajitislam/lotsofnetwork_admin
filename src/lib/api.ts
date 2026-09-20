@@ -214,6 +214,7 @@ export interface ApiKey {
   tier: "free" | "developer" | "pro";
   monthly_limit: number;
   current_month_usage: number;
+  rate_limit_rpm: number;
   is_active: boolean;
   created_at: string;
   last_used_at: string | null;
@@ -305,7 +306,7 @@ export async function authFetch(
   options: RequestInit = {},
   explicitToken?: string | null
 ): Promise<Response> {
-  let token = explicitToken || (await getValidAccessToken());
+  const token = explicitToken || (await getValidAccessToken());
   const headers = new Headers(options.headers || {});
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
@@ -698,7 +699,7 @@ export const adminApi = {
 
   async createApiKey(
     token: string,
-    payload: { user_id?: string; name: string; tier?: string; monthly_limit?: number }
+    payload: { user_id?: string; name: string; tier?: string; monthly_limit?: number; rate_limit_rpm?: number }
   ): Promise<ApiKeyCreateResponse> {
     const res = await authFetch(
       `${API_BASE_URL}/api/v1/admin/api-keys`,

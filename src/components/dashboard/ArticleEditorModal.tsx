@@ -35,9 +35,12 @@ import {
   Plus, 
   ExternalLink,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  Upload,
+  Trash2,
+  Loader2
 } from "lucide-react";
-import { Article, Category, adminApi } from "@/lib/api";
+import { Article, Category, adminApi, API_BASE_URL } from "@/lib/api";
 
 interface ArticleEditorModalProps {
   isOpen: boolean;
@@ -74,6 +77,10 @@ export function ArticleEditorModal({
   const [seoDescription, setSeoDescription] = useState("");
   const [canonicalUrl, setCanonicalUrl] = useState("");
   const [featuredImage, setFeaturedImage] = useState("");
+  const [uploadingFeatured, setUploadingFeatured] = useState(false);
+  const [featuredUploadError, setFeaturedUploadError] = useState<string | null>(null);
+  const [featuredInputMode, setFeaturedInputMode] = useState<"upload" | "url">("upload");
+  const [uploadingContentImg, setUploadingContentImg] = useState(false);
 
   // Editor View Mode
   const [viewMode, setViewMode] = useState<"split" | "edit" | "preview">("split");
@@ -314,6 +321,67 @@ export function ArticleEditorModal({
     }, 20);
   };
 
+  // Image Upload Handlers
+  const handleFeaturedImageUpload = async (file: File) => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setFeaturedUploadError("Image size exceeds 5MB limit.");
+      return;
+    }
+    setFeaturedUploadError(null);
+    setUploadingFeatured(true);
+
+    try {
+      if (token) {
+        const res = await adminApi.uploadMedia(token, file);
+        const resolvedUrl = res.url.startsWith("http") ? res.url : `${API_BASE_URL}${res.url}`;
+        setFeaturedImage(resolvedUrl);
+      } else {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          setFeaturedImage((e.target?.result as string) || "");
+        };
+        reader.readAsDataURL(file);
+      }
+    } catch (err: any) {
+      console.error("Featured image upload failed:", err);
+      setFeaturedUploadError(err.message || "Failed to upload image. You can also paste an image URL directly.");
+    } finally {
+      setUploadingFeatured(false);
+    }
+  };
+
+  const handleContentImageUpload = async (file: File) => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Image size exceeds 5MB limit.");
+      return;
+    }
+    setUploadingContentImg(true);
+    try {
+      let finalUrl = "";
+      if (token) {
+        const res = await adminApi.uploadMedia(token, file);
+        finalUrl = res.url.startsWith("http") ? res.url : `${API_BASE_URL}${res.url}`;
+      } else {
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve((e.target?.result as string) || "");
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        finalUrl = dataUrl;
+      }
+      const altText = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+      insertInline(`\n\n![${altText}](${finalUrl})\n\n`);
+    } catch (err: any) {
+      console.error("Content image upload failed:", err);
+      alert(err.message || "Failed to upload image.");
+    } finally {
+      setUploadingContentImg(false);
+    }
+  };
+
   // Add tag
   const handleAddTag = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" || e.key === ",") {
@@ -385,7 +453,7 @@ export function ArticleEditorModal({
       seo_title: seoTitle.trim() || `${title.substring(0, 55)} | Lots of Network`,
       seo_description: seoDescription.trim() || excerpt.trim() || undefined,
       canonical_url: canonicalUrl.trim() || `https://lotsofnetwork.com/blog/${slug.trim().toLowerCase()}`,
-      featured_image: featuredImage.trim() || undefined,
+      featured_image: featuredImage.trim() || null,
       views: Number(views) >= 0 ? Number(views) : 0,
     };
 
@@ -674,6 +742,35 @@ export function ArticleEditorModal({
                 className="px-2 py-1 rounded-lg hover:bg-slate-200/60 dark:hover:bg-white/10 text-[11px] font-mono font-bold cursor-pointer"
               >
                 {"{ } Code"}
+              </button>
+
+              <div className="w-px h-4 bg-slate-200 dark:bg-white/10 mx-1" />
+
+              {/* In-Content Image Upload Button */}
+              <input
+                type="file"
+                id="article-content-img-input"
+                accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleContentImageUpload(file);
+                  e.target.value = "";
+                }}
+              />
+              <button 
+                type="button"
+                onClick={() => document.getElementById("article-content-img-input")?.click()} 
+                title="Upload & Insert In-Content Image" 
+                disabled={uploadingContentImg}
+                className="p-1.5 rounded-lg hover:bg-purple-500/10 hover:text-purple-600 text-slate-600 dark:text-slate-300 cursor-pointer flex items-center gap-1 text-xs transition"
+              >
+                {uploadingContentImg ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
+                ) : (
+                  <ImageIcon className="w-4 h-4 text-amber-500" />
+                )}
+                <span className="text-[11px] font-medium hidden sm:inline">Image</span>
               </button>
             </div>
 
@@ -985,22 +1082,127 @@ export function ArticleEditorModal({
               </div>
             </div>
 
-            {/* 6. Featured Image URL */}
-            <div className="space-y-1.5">
-              <label className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
-                <ImageIcon className="w-3.5 h-3.5 text-amber-500" />
-                Featured / OpenGraph Image URL
-              </label>
-              <input
-                type="url"
-                placeholder="https://images.unsplash.com/..."
-                value={featuredImage}
-                onChange={(e) => setFeaturedImage(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-white dark:bg-[#0b101d] border border-slate-200 dark:border-white/10 text-xs truncate"
-              />
-              {featuredImage && (
-                <div className="w-full h-24 rounded-xl overflow-hidden border border-slate-200 dark:border-white/10">
-                  <img src={featuredImage} alt="Preview" className="w-full h-full object-cover" />
+            {/* 6. Featured Image (Optional) */}
+            <div className="space-y-2 p-3.5 rounded-2xl bg-slate-50/80 dark:bg-white/[0.02] border border-slate-200/80 dark:border-white/5">
+              <div className="flex items-center justify-between">
+                <label className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 text-xs">
+                  <ImageIcon className="w-3.5 h-3.5 text-amber-500" />
+                  Featured / Cover Image
+                </label>
+                <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 bg-white dark:bg-white/5 px-2 py-0.5 rounded-md border border-slate-200 dark:border-white/10">
+                  Optional
+                </span>
+              </div>
+
+              {featuredImage ? (
+                <div className="space-y-2">
+                  <div className="relative w-full h-32 rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 group bg-slate-100 dark:bg-black/30">
+                    <img src={featuredImage} alt="Featured Preview" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setFeaturedImage("")}
+                        className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-lg transition cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Remove Image
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono">
+                    <span className="truncate max-w-[200px]" title={featuredImage}>
+                      {featuredImage}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setFeaturedImage("")}
+                      className="text-red-500 hover:text-red-600 text-xs font-medium ml-2 shrink-0 flex items-center gap-1 cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {/* Mode switch: Upload vs URL */}
+                  <div className="flex items-center gap-1 p-0.5 rounded-lg bg-slate-200/60 dark:bg-white/5 w-fit text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setFeaturedInputMode("upload")}
+                      className={`px-2.5 py-1 rounded-md font-medium transition cursor-pointer ${
+                        featuredInputMode === "upload"
+                          ? "bg-white dark:bg-white/10 text-purple-600 dark:text-purple-400 shadow-xs"
+                          : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                      }`}
+                    >
+                      Upload File
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFeaturedInputMode("url")}
+                      className={`px-2.5 py-1 rounded-md font-medium transition cursor-pointer ${
+                        featuredInputMode === "url"
+                          ? "bg-white dark:bg-white/10 text-purple-600 dark:text-purple-400 shadow-xs"
+                          : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                      }`}
+                    >
+                      Image URL
+                    </button>
+                  </div>
+
+                  {featuredInputMode === "upload" ? (
+                    <div>
+                      <input
+                        type="file"
+                        id="featured-image-file-input"
+                        accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleFeaturedImageUpload(file);
+                          e.target.value = "";
+                        }}
+                      />
+                      <label
+                        htmlFor="featured-image-file-input"
+                        className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-slate-200 dark:border-white/10 rounded-xl cursor-pointer hover:border-purple-500 dark:hover:border-purple-500/50 bg-white/50 dark:bg-white/[0.01] hover:bg-purple-50/20 transition group"
+                      >
+                        {uploadingFeatured ? (
+                          <div className="flex items-center gap-2 text-purple-600 text-xs font-semibold">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>Uploading image...</span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-1 text-center px-4">
+                            <Upload className="w-5 h-5 text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform" />
+                            <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                              Choose file or drop here
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              PNG, JPG, WebP, SVG up to 5MB (Optional)
+                            </span>
+                          </div>
+                        )}
+                      </label>
+                      {featuredUploadError && (
+                        <p className="text-[11px] text-red-500 mt-1">{featuredUploadError}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div>
+                      <input
+                        type="url"
+                        placeholder="https://images.unsplash.com/... or CDN link"
+                        value={featuredImage}
+                        onChange={(e) => setFeaturedImage(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-[#0b101d] border border-slate-200 dark:border-white/10 text-xs truncate focus:outline-hidden focus:ring-1 focus:ring-purple-500"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        Paste any public image link or leave empty.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

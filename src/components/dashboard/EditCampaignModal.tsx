@@ -17,7 +17,7 @@ import {
   Maximize2,
   Activity
 } from "lucide-react";
-import { adminApi, Campaign } from "@/lib/api";
+import { adminApi, Campaign, API_BASE_URL } from "@/lib/api";
 
 interface EditCampaignModalProps {
   campaign: Campaign;
@@ -155,7 +155,9 @@ export function EditCampaignModal({ campaign, isOpen, onClose, onSuccess, token 
         if (token) {
           try {
             const uploadRes = await adminApi.uploadMedia(token, selectedFile);
-            finalImageUrl = uploadRes.url;
+            finalImageUrl = uploadRes.url.startsWith("http")
+              ? uploadRes.url
+              : `${API_BASE_URL}${uploadRes.url.startsWith("/") ? "" : "/"}${uploadRes.url}`;
           } catch (uploadErr: any) {
             console.warn("Upload endpoint failed, falling back to preview URL", uploadErr);
             finalImageUrl = filePreview;

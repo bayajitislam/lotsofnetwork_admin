@@ -218,43 +218,45 @@ export function GoogleSignInCard() {
               </span>
             </div>
 
-            {/* Quick Testing Panel Toggle */}
-            <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800 text-center">
-              <button
-                type="button"
-                onClick={() => setShowDevPanel(!showDevPanel)}
-                className="text-xs text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 cursor-pointer font-medium"
-              >
-                <RefreshCw className="w-3 h-3" />
-                {showDevPanel ? "Hide Simulation Tools" : "Developer Role Testing Panel"}
-              </button>
+            {/* Quick Testing Panel Toggle (Development Only) */}
+            {process.env.NODE_ENV === "development" && (
+              <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800 text-center">
+                <button
+                  type="button"
+                  onClick={() => setShowDevPanel(!showDevPanel)}
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1 cursor-pointer font-medium"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  {showDevPanel ? "Hide Simulation Tools" : "Developer Role Testing Panel"}
+                </button>
 
-              {showDevPanel && (
-                <div className="mt-3 p-3 rounded-2xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/50 dark:border-blue-900/40 space-y-2 text-left animate-in fade-in duration-200">
-                  <p className="text-[11px] font-medium text-slate-600 dark:text-slate-400">
-                    Test Google role resolution against backend:
-                  </p>
-                  <div className="grid grid-cols-1 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleDevSimulation("realbayajitislam@gmail.com", "Bayajit Islam (Admin)")}
-                      className="w-full text-xs py-2 px-3 rounded-xl bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition flex items-center justify-between cursor-pointer"
-                    >
-                      <span>Simulate Admin Login</span>
-                      <span className="text-[10px] bg-emerald-700 px-1.5 py-0.5 rounded">Role: admin</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDevSimulation("developer@example.com", "Regular User")}
-                      className="w-full text-xs py-2 px-3 rounded-xl bg-slate-700 text-white font-medium hover:bg-slate-800 transition flex items-center justify-between cursor-pointer"
-                    >
-                      <span>Simulate Standard User</span>
-                      <span className="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded">Role: user</span>
-                    </button>
+                {showDevPanel && (
+                  <div className="mt-3 p-3 rounded-2xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/50 dark:border-blue-900/40 space-y-2 text-left animate-in fade-in duration-200">
+                    <p className="text-[11px] font-medium text-slate-600 dark:text-slate-400">
+                      Test Google role resolution against backend:
+                    </p>
+                    <div className="grid grid-cols-1 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleDevSimulation("realbayajitislam@gmail.com", "Bayajit Islam (Admin)")}
+                        className="w-full text-xs py-2 px-3 rounded-xl bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition flex items-center justify-between cursor-pointer"
+                      >
+                        <span>Simulate Admin Login</span>
+                        <span className="text-[10px] bg-emerald-700 px-1.5 py-0.5 rounded">Role: admin</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDevSimulation("developer@example.com", "Regular User")}
+                        className="w-full text-xs py-2 px-3 rounded-xl bg-slate-700 text-white font-medium hover:bg-slate-800 transition flex items-center justify-between cursor-pointer"
+                      >
+                        <span>Simulate Standard User</span>
+                        <span className="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded">Role: user</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

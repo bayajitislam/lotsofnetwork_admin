@@ -71,6 +71,7 @@ export function UsersView({
   const [newKeyOwnerId, setNewKeyOwnerId] = useState(users[0]?.id || "");
   const [newKeyTier, setNewKeyTier] = useState<"free" | "developer" | "pro">("developer");
   const [newKeyLimit, setNewKeyLimit] = useState(10000);
+  const [newKeyRpm, setNewKeyRpm] = useState(300);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
 
@@ -144,6 +145,7 @@ export function UsersView({
         user_id: newKeyOwnerId || (users.length > 0 ? users[0].id : undefined),
         tier: newKeyTier,
         monthly_limit: Number(newKeyLimit),
+        rate_limit_rpm: Number(newKeyRpm),
       });
 
       if (onApiKeyCreated) onApiKeyCreated(res);
@@ -151,8 +153,12 @@ export function UsersView({
       setRevealedSecret(res.secret_key);
       setNewKeyName("");
       setNewKeyLimit(10000);
-    } catch (err: any) {
-      setGenerateError(err.detail || err.message || "Failed to generate API key.");
+      setNewKeyRpm(300);
+    } catch (err: unknown) {
+      const errorMsg = (err && typeof err === "object" && "detail" in err) 
+        ? String((err as { detail: unknown }).detail)
+        : err instanceof Error ? err.message : "Failed to generate API key.";
+      setGenerateError(errorMsg);
     } finally {
       setIsGenerating(false);
     }
@@ -527,6 +533,7 @@ export function UsersView({
                     <th className="pb-3">Owner User</th>
                     <th className="pb-3">Tier</th>
                     <th className="pb-3">Monthly Quota Meter</th>
+                    <th className="pb-3">Rate Limit</th>
                     <th className="pb-3">Status</th>
                     <th className="pb-3">Created</th>
                     <th className="pb-3 pr-2 text-right">Actions</th>
@@ -535,7 +542,7 @@ export function UsersView({
                 <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                   {filteredKeys.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-400">
+                      <td colSpan={8} className="py-12 text-center text-slate-400">
                         No API keys found. Click &quot;Generate New API Key&quot; to issue developer access credentials.
                       </td>
                     </tr>
@@ -608,6 +615,12 @@ export function UsersView({
                                 style={{ width: `${usagePct}%` }}
                               />
                             </div>
+                          </td>
+
+                          <td className="py-4 font-mono text-[11px]">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 font-semibold">
+                              {k.rate_limit_rpm || 60} <span className="text-[10px] text-slate-400 font-normal">rpm</span>
+                            </span>
                           </td>
 
                           <td className="py-4">
@@ -733,7 +746,7 @@ export function UsersView({
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                     Tier Model
@@ -743,29 +756,50 @@ export function UsersView({
                     onChange={(e) => {
                       const t = e.target.value as "free" | "developer" | "pro";
                       setNewKeyTier(t);
-                      if (t === "free") setNewKeyLimit(1000);
-                      else if (t === "developer") setNewKeyLimit(10000);
-                      else if (t === "pro") setNewKeyLimit(100000);
+                      if (t === "free") {
+                        setNewKeyLimit(1000);
+                        setNewKeyRpm(60);
+                      } else if (t === "developer") {
+                        setNewKeyLimit(10000);
+                        setNewKeyRpm(300);
+                      } else if (t === "pro") {
+                        setNewKeyLimit(100000);
+                        setNewKeyRpm(1200);
+                      }
                     }}
                     className="w-full px-3 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-purple-500"
                   >
-                    <option value="developer">Developer Tier (10,000 reqs/mo)</option>
-                    <option value="pro">Pro Tier (100,000 reqs/mo)</option>
-                    <option value="free">Free Tier (1,000 reqs/mo)</option>
+                    <option value="developer">Developer Tier</option>
+                    <option value="pro">Pro Tier</option>
+                    <option value="free">Free Tier</option>
                   </select>
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Monthly Quota Limit
+                    Monthly Quota
                   </label>
                   <input
                     type="number"
                     min={1}
-                    step="any"
                     required
                     value={newKeyLimit}
                     onChange={(e) => setNewKeyLimit(Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    RPM Rate Limit
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10000}
+                    required
+                    value={newKeyRpm}
+                    onChange={(e) => setNewKeyRpm(Number(e.target.value))}
                     className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
@@ -835,7 +869,7 @@ export function UsersView({
                 Test API Usage (cURL)
               </span>
               <code className="text-[11px] text-slate-300 font-mono block break-all select-all">
-                curl -H "X-API-Key: {revealedSecret}" http://localhost:8000/api/v1/tools/ip-lookup
+                {`curl -H "X-API-Key: ${revealedSecret}" http://localhost:8000/api/v1/tools/ip-lookup`}
               </code>
             </div>
 
