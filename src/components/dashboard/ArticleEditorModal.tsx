@@ -155,15 +155,50 @@ export function ArticleEditorModal({
 
   const readingTime = Math.max(1, Math.round(wordCount / 200));
 
+  // Sanitize parsed markdown HTML to prevent XSS in preview
+  const sanitizeMarkdownHtml = (html: string): string => {
+    if (typeof window === "undefined") return html;
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+      const dangerousTags = [
+        "script", "iframe", "object", "embed", "link", 
+        "style", "form", "input", "button", "textarea", 
+        "select", "meta", "base"
+      ];
+      dangerousTags.forEach((tag) => {
+        doc.querySelectorAll(tag).forEach((el) => el.remove());
+      });
+      doc.querySelectorAll("*").forEach((el) => {
+        Array.from(el.attributes).forEach((attr) => {
+          const name = attr.name.toLowerCase();
+          const val = attr.value.trim().toLowerCase();
+          if (
+            name.startsWith("on") ||
+            val.startsWith("javascript:") ||
+            val.startsWith("vbscript:") ||
+            val.startsWith("data:text/html")
+          ) {
+            el.removeAttribute(attr.name);
+          }
+        });
+      });
+      return doc.body.innerHTML;
+    } catch {
+      return html;
+    }
+  };
+
   // Rendered HTML from Markdown
   const renderedHtml = useMemo(() => {
     if (!content.trim()) {
       return "<p class='text-slate-400 italic'>Start typing in markdown to see live rendered preview...</p>";
     }
     try {
-      return marked.parse(content, { gfm: true, breaks: true }) as string;
-    } catch (e) {
-      return `<pre class='text-rose-400 font-mono'>Failed to render markdown: ${String(e)}</pre>`;
+      const rawHtml = marked.parse(content, { gfm: true, breaks: true }) as string;
+      return sanitizeMarkdownHtml(rawHtml);
+    } catch {
+      return `<pre class='text-rose-400 font-mono'>Failed to render markdown preview</pre>`;
     }
   }, [content]);
 

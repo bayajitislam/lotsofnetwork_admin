@@ -236,6 +236,20 @@ export class ApiError extends Error {
   }
 }
 
+export function extractDetail(data: unknown, fallback: string): string {
+  if (data && typeof data === "object" && "detail" in data) {
+    const detail = (data as { detail: unknown }).detail;
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail)) {
+      return detail
+        .map((d) => (d && typeof d === "object" && "msg" in d ? String(d.msg) : JSON.stringify(d)))
+        .join("; ");
+    }
+    return String(detail);
+  }
+  return fallback;
+}
+
 export function parseJwt(token: string): { exp?: number; sub?: string; role?: string } | null {
   try {
     const base64Url = token.split(".")[1];
@@ -327,7 +341,9 @@ export async function authFetch(
       } catch {
         localStorage.removeItem("admin_access_token");
         localStorage.removeItem("admin_refresh_token");
-        window.location.replace("/?error=session_expired");
+        if (typeof window !== "undefined" && window.location.pathname !== "/") {
+          window.location.replace("/?error=session_expired");
+        }
       }
     }
   }
@@ -411,7 +427,7 @@ export const adminApi = {
   async getCategories(token?: string | null): Promise<Category[]> {
     const res = await authFetch(`${API_BASE_URL}/api/v1/admin/categories`, {}, token);
     const data = await res.json().catch(() => ([]));
-    if (!res.ok) throw new ApiError(res.status, (data as any)?.detail || "Failed to load categories");
+    if (!res.ok) throw new ApiError(res.status, extractDetail(data, "Failed to load categories"));
     return data as Category[];
   },
 
@@ -467,7 +483,7 @@ export const adminApi = {
     if (role) url.searchParams.set("role", role);
     const res = await authFetch(url.toString(), {}, token);
     const data = await res.json().catch(() => ([]));
-    if (!res.ok) throw new ApiError(res.status, (data as any)?.detail || "Failed to load users");
+    if (!res.ok) throw new ApiError(res.status, extractDetail(data, "Failed to load users"));
     return data as UserProfile[];
   },
 
@@ -496,7 +512,7 @@ export const adminApi = {
     if (slot && slot !== "all") url.searchParams.set("slot", slot);
     const res = await authFetch(url.toString(), {}, token);
     const data = await res.json().catch(() => ([]));
-    if (!res.ok) throw new ApiError(res.status, (data as any)?.detail || "Failed to load campaigns");
+    if (!res.ok) throw new ApiError(res.status, extractDetail(data, "Failed to load campaigns"));
     return data as Campaign[];
   },
 
@@ -580,7 +596,7 @@ export const adminApi = {
     url.searchParams.set("limit", "100");
     const res = await authFetch(url.toString(), {}, token);
     const data = await res.json().catch(() => ([]));
-    if (!res.ok) throw new ApiError(res.status, (data as any)?.detail || "Failed to load articles");
+    if (!res.ok) throw new ApiError(res.status, extractDetail(data, "Failed to load articles"));
     return data as Article[];
   },
 
@@ -648,14 +664,14 @@ export const adminApi = {
   async getTelemetry(token?: string | null): Promise<ToolTelemetry[]> {
     const res = await authFetch(`${API_BASE_URL}/api/v1/admin/telemetry`, {}, token);
     const data = await res.json().catch(() => ([]));
-    if (!res.ok) throw new ApiError(res.status, (data as any)?.detail || "Failed to load telemetry");
+    if (!res.ok) throw new ApiError(res.status, extractDetail(data, "Failed to load telemetry"));
     return data as ToolTelemetry[];
   },
 
   async getCrashLogs(token?: string | null): Promise<CrashLog[]> {
     const res = await authFetch(`${API_BASE_URL}/api/v1/admin/crash-logs`, {}, token);
     const data = await res.json().catch(() => ([]));
-    if (!res.ok) throw new ApiError(res.status, (data as any)?.detail || "Failed to load crash logs");
+    if (!res.ok) throw new ApiError(res.status, extractDetail(data, "Failed to load crash logs"));
     return data as CrashLog[];
   },
 
@@ -686,14 +702,14 @@ export const adminApi = {
   async getAuditLogs(token?: string | null): Promise<AuditLog[]> {
     const res = await authFetch(`${API_BASE_URL}/api/v1/admin/audit-logs`, {}, token);
     const data = await res.json().catch(() => ([]));
-    if (!res.ok) throw new ApiError(res.status, (data as any)?.detail || "Failed to load audit logs");
+    if (!res.ok) throw new ApiError(res.status, extractDetail(data, "Failed to load audit logs"));
     return data as AuditLog[];
   },
 
   async getApiKeys(token?: string | null): Promise<ApiKey[]> {
     const res = await authFetch(`${API_BASE_URL}/api/v1/admin/api-keys`, {}, token);
     const data = await res.json().catch(() => ([]));
-    if (!res.ok) throw new ApiError(res.status, (data as any)?.detail || "Failed to load API keys");
+    if (!res.ok) throw new ApiError(res.status, extractDetail(data, "Failed to load API keys"));
     return data as ApiKey[];
   },
 
@@ -746,7 +762,7 @@ export const adminApi = {
   async getSubscriptions(token?: string | null): Promise<AdminSubscriptionItem[]> {
     const res = await authFetch(`${API_BASE_URL}/api/v1/admin/subscriptions`, {}, token);
     const data = await res.json().catch(() => ([]));
-    if (!res.ok) throw new ApiError(res.status, (data as any)?.detail || "Failed to load subscriptions");
+    if (!res.ok) throw new ApiError(res.status, extractDetail(data, "Failed to load subscriptions"));
     return data as AdminSubscriptionItem[];
   },
 
@@ -772,7 +788,7 @@ export const adminApi = {
   async getPlans(token?: string | null): Promise<Plan[]> {
     const res = await authFetch(`${API_BASE_URL}/api/v1/admin/plans`, {}, token);
     const data = await res.json().catch(() => ([]));
-    if (!res.ok) throw new ApiError(res.status, (data as any)?.detail || "Failed to load plans");
+    if (!res.ok) throw new ApiError(res.status, extractDetail(data, "Failed to load plans"));
     return data as Plan[];
   },
 
